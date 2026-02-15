@@ -1,4 +1,22 @@
+# custom
 tests/
 src/__pycache__
-test_dest
-test_src
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+.venv/
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# uv
+.uv/
+
+# Python version file
+.python-version
