@@ -1,0 +1,4 @@
+tests/
+src/__pycache__
+test_dest
+test_src
