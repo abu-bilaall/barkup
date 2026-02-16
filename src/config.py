@@ -81,3 +81,34 @@ def load_config(cli_path: Path | None = None) -> dict:
     
     return config
 
+def init_config(force: bool = False) -> Path:
+    """Initialize default config in user config directory"""
+    config_path = get_user_config_path()
+
+    if config_path.exists and not force:
+        raise FileExistsError(f"Config file already exists at '{config_path}'. Use --force to overwrite.")
+    
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # default config
+    default_config = """# Barkup Configuration File
+
+[general]
+profile_name = "default"
+dry_run = false
+compression = false
+exclude = ["*.tmp", ".git", "node_modules"]
+
+[local]
+sources = ["/home/user/Documents"]
+destination = "/home/user/Backups"
+compression = false
+exclude = []
+
+[[cloud_providers]]
+provider = "google_drive"
+enabled = false
+"""
+
+    config_path.write_text(default_config)
+    return config_path
