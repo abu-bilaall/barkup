@@ -1,0 +1,53 @@
+# Barkup Configuration File
+# Edit this file to configure backup sources, destinations, etc.
+
+# =====================
+# General Settings
+# =====================
+[general]
+# Name of this backup profile
+profile_name = "barkup-anton"
+
+# Whether to enable dry-run mode (no actual copying)
+dry_run = false
+
+# =====================
+# Local Backup Settings
+# =====================
+[local]
+# List of directories to back up
+sources = ["/home/user/Documents", "/home/user/Pictures"]
+
+# Local destination path
+destination = "/mnt/backups"
+
+# Whether to compress backups
+compression = false
+
+# what to exclude, support pattern-matching
+exclude = ["*.tmp", ".git", "node_modules"]
+
+# =====================
+# Cloud Providers
+# =====================
+[[cloud_providers]]
+provider = "google_drive"
+enabled = true
+credentials_file = "/home/user/.barkup/google_drive.json"
+remote_folder = "Backups/Barkup"
+large_file_warning = 100 # MB threshold
+
+[[cloud_providers]]
+provider = "amazon_s3"
+enabled = false
+access_key = "YOUR_AWS_ACCESS_KEY"
+secret_key = "YOUR_AWS_SECRET_KEY"
+bucket = "my-barkup-bucket"
+region = "us-east-1"
+
+# =====================
+# Advanced / Optional
+# =====================
+[advanced]
+# Temporary directory for staging backups
+temp_dir = "/tmp/barkup"
