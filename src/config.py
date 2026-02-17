@@ -20,12 +20,12 @@ def get_user_config_path() -> Path:
         return Path.home() / ".config" / "barkup" / "config.toml"
 
 def resolve_config_paths(cli_path: Path | None = None) -> list[Path]:
-    """Resolve all config paths in priority ordered lowest to highest"""
+    """Resolve all config paths in priority order (lowest to highest)"""
     paths = []
 
     sys_path = Path("/etc/barkup/config.toml")
     user_path = get_user_config_path()
-    project_path = Path.cwd() / "barkup.config.toml"
+    cwd_path = Path.cwd() / "barkup.config.toml"
 
     # Lowest priority first
     if sys_path.exists():
@@ -34,11 +34,11 @@ def resolve_config_paths(cli_path: Path | None = None) -> list[Path]:
     if user_path.exists():
         paths.append(user_path)
 
-    if project_path.exists():
-        paths.append(project_path)
+    if cwd_path.exists():
+        paths.append(cwd_path)
 
     if cli_path:
-        if not  cli_path.exists():
+        if not cli_path.exists():
             raise FileNotFoundError(f"Config file not found: {cli_path}")
         paths.append(cli_path)
 
@@ -84,31 +84,66 @@ def load_config(cli_path: Path | None = None) -> dict:
 def init_config(force: bool = False) -> Path:
     """Initialize default config in user config directory"""
     config_path = get_user_config_path()
+    config_path_exists = config_path.exists()
 
-    if config_path.exists and not force:
+    if config_path_exists and not force:
         raise FileExistsError(f"Config file already exists at '{config_path}'. Use --force to overwrite.")
     
     config_path.parent.mkdir(parents=True, exist_ok=True)
 
     # default config
-    default_config = """# Barkup Configuration File
+    default_config = f"""# Barkup Configuration File
 
 [general]
+# fields specific to this section
 profile_name = "default"
 dry_run = false
+
+# 'sources', 'compression', and 'exclude' defined here
+# serve as fallbacks for [local] and [[cloud_providers]]
+# if they don't define their own.
+sources = ["{Path.home()}"]
 compression = false
 exclude = ["*.tmp", ".git", "node_modules"]
 
 [local]
-sources = ["/home/user/Documents"]
-destination = "/home/user/Backups"
-compression = false
-exclude = []
+# field specific to this section
+destination = "{Path.home() / "Backups"}"
 
 [[cloud_providers]]
+# check the docs for more about this section
 provider = "google_drive"
 enabled = false
 """
 
     config_path.write_text(default_config)
+
+    if config_path_exists:
+        print(f"Config file overwritten at '{config_path}'.")
+    else:
+        print(f"Config file written at '{config_path}'.")
+
     return config_path
+        
+def update_config_runtime(config: dict, path: str, value: Any) -> None:
+    """
+    Update config value at runtime.
+    
+    Example: 
+    barkup --compression=false
+    update_config_runtime(config, "--compression=false", True)
+    """
+    pass
+
+def set_config_section_infile(config: dict, section: str) -> None:
+    """
+    Docstring for set_config_section_infile
+    
+    :param config: Description
+    :type config: dict
+    :param section: Description
+    :type section: str
+
+    dev_deps: tomli_w
+    """
+    pass
