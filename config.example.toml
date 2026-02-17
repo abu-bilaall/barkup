@@ -5,21 +5,16 @@
 # General Settings
 # =====================
 [general]
-# Name of this backup profile
-profile_name = "barkup-anton"
+# fields specific to this section
+profile_name = "barkup-anton" # Name of this backup profile
+dry_run = false # Whether to enable dry-run mode (no actual copying)
 
-# Whether to enable dry-run mode (no actual copying)
-dry_run = false
+# 'sources', 'compression', and 'exclude' defined here
+# serve as fallbacks for [local] and [[cloud_providers]]
+# if they don't define their own.
 
-# =====================
-# Local Backup Settings
-# =====================
-[local]
 # List of directories to back up
 sources = ["/home/user/Documents", "/home/user/Pictures"]
-
-# Local destination path
-destination = "/mnt/backups"
 
 # Whether to compress backups
 compression = false
@@ -27,19 +22,43 @@ compression = false
 # what to exclude, support pattern-matching
 exclude = ["*.tmp", ".git", "node_modules"]
 
+
+# =====================
+# Local Backup Settings
+# =====================
+[local]
+
+# Local destination path
+destination = "/mnt/backups"
+
+# 'exclude' defined in local and cloud sections 
+# merge with general's exclude list
+exclude = [".tmp*"]
+
+
 # =====================
 # Cloud Providers
 # =====================
 [[cloud_providers]]
-provider = "google_drive"
+# fields specific to this section
+provider = "'google_drive' or 'amazon_s3'"
 enabled = true
+large_file_warning = 100 # MB threshold, default is 100
+
+# optional fields, fall back to general defaults if not defined
+sources = ["/home/user/Documents", "/home/user/Pictures"]
+compression = false
+exclude = ["*.tmp", ".git", "node_modules"]
+
+# Google Drive specific fields
 credentials_file = "/home/user/.barkup/google_drive.json"
 remote_folder = "Backups/Barkup"
-large_file_warning = 100 # MB threshold
 
 [[cloud_providers]]
 provider = "amazon_s3"
 enabled = false
+
+# Amazon S3 specific fields
 access_key = "YOUR_AWS_ACCESS_KEY"
 secret_key = "YOUR_AWS_SECRET_KEY"
 bucket = "my-barkup-bucket"
