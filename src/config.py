@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import tomllib
 from typing import Any
+from config_models import BarkupConfig
 
 def get_user_config_path() -> Path:
     """Get platform-specific user config path"""
@@ -63,9 +64,9 @@ def deep_merge(base: dict, override: dict) -> dict:
     
     return result
 
-def load_config(cli_path: Path | None = None) -> dict:
+def load_config(cli_path: Path | None = None) -> BarkupConfig:
     """Load and merge config from all sources"""
-    config: dict = {}
+    raw_config: dict = {}
     paths = resolve_config_paths(cli_path)
 
     if not paths:
@@ -75,11 +76,11 @@ def load_config(cli_path: Path | None = None) -> dict:
         try:
             with open(path, "rb") as f:
                 parsed = tomllib.load(f)
-                config = deep_merge(config, parsed)
+                raw_config = deep_merge(raw_config, parsed)
         except tomllib.TOMLDecodeError as e:
             raise ValueError(f"Invalid TOML in {path}: {e}")
     
-    return config
+    return BarkupConfig(**raw_config)
 
 def init_config(force: bool = False) -> Path:
     """Initialize default config in user config directory"""
