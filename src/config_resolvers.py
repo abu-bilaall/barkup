@@ -1,6 +1,22 @@
 """
-classes and functions for resolving configuration fields
-of [local] and [[cloud_providers]] sections.
+Resolves raw config models into fully merged, provider-specific configs
+ready for use by the backup pipeline.
+
+Takes GeneralConfig and provider-specific config models (LocalConfig,
+CloudProvider) and produces resolved dataclasses where fallback logic
+has already been applied — local/provider values take precedence over
+general, and exclude lists are merged and deduplicated.
+
+Resolved types:
+    ResolvedLocalConfig             -- local filesystem backup
+    ResolvedCloudConfig             -- base class for cloud backups
+    ResolvedGoogleDriveCloudConfig  -- Google Drive-specific config
+    ResolvedAmazonS3CloudConfig     -- Amazon S3-specific config
+
+Resolvers:
+    resolve_local_config(general, local)      -> ResolvedLocalConfig
+    resolve_cloud_config(general, provider)   -> ResolvedGoogleDriveCloudConfig
+                                             | ResolvedAmazonS3CloudConfig
 """
 
 from dataclasses import dataclass
@@ -10,6 +26,10 @@ from config_models import GeneralConfig, LocalConfig, CloudProvider
 @dataclass
 class ResolvedLocalConfig:
     """Fully resolved config for local backup."""
+
+    # general fields
+    profile_name: str
+    dry_run: bool
 
     # native to local
     destination: str
@@ -24,6 +44,10 @@ class ResolvedLocalConfig:
 class ResolvedCloudConfig:
     """Fully resolved config for cloud backup"""
 
+    # general fields
+    profile_name: str
+    dry_run: bool
+    
     # fields native cloud
     provider: str
     enabled: bool
@@ -58,6 +82,8 @@ def resolve_local_config(
 ) -> ResolvedLocalConfig:
     """Resolve effective local backup config using general as fallback."""
     return ResolvedLocalConfig(
+        profile_name=general.profile_name,
+        dry_run=general.dry_run,
         destination=local.destination,
         sources=local.sources if local.sources is not None else general.sources,
         compression=(
@@ -71,6 +97,8 @@ def resolve_cloud_config(
     general: GeneralConfig, provider: CloudProvider
 ) -> ResolvedGoogleDriveCloudConfig | ResolvedAmazonS3CloudConfig:
     """Resolve effective cloud backup config based on provider."""
+    profile_name = general.profile_name
+    dry_run = general.dry_run
     resolved_sources = (
         provider.sources if provider.sources is not None else general.sources
     )
@@ -89,6 +117,8 @@ def resolve_cloud_config(
     match provider.provider:
         case "google_drive":
             return ResolvedGoogleDriveCloudConfig(
+                profile_name=profile_name,
+                dry_run=dry_run,
                 sources=resolved_sources,
                 compression=resolved_compression,
                 exclude=resolved_exclude,
@@ -100,6 +130,8 @@ def resolve_cloud_config(
             )
         case "amazon_s3":
             return ResolvedAmazonS3CloudConfig(
+                profile_name=profile_name,
+                dry_run=dry_run,
                 sources=resolved_sources,
                 compression=resolved_compression,
                 exclude=resolved_exclude,
