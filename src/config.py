@@ -8,23 +8,37 @@ from pathlib import Path
 import tomllib
 from typing import Any
 from config_models import BarkupConfig
+from config_resolvers import ResolvedLocalConfig
+import sys
+
 
 def get_user_config_path() -> Path:
     """Get platform-specific user config path"""
-    if os.name == "nt": # Windows
+    if os.name == "nt":  # Windows
         base = Path(os.getenv("APPDATA", str(Path.home())))
         return base / "barkup" / "config.toml"
-    else: # Unix-like (Linux, macOS)
-        xdg = os.getenv("XDG_CONFIG_HOME")  
+    else:  # Unix-like (Linux, macOS)
+        xdg = os.getenv("XDG_CONFIG_HOME")
         if xdg:
             return Path(xdg) / "barkup" / "config.toml"
         return Path.home() / ".config" / "barkup" / "config.toml"
+
+
+def get_sys_config_path() -> Path:
+    """Get platform-specific system config path"""
+    if os.name == "nt":
+        base = Path(os.getenv("PROGRAMDATA", "C:\\ProgramData"))
+    else:
+        base = Path("/etc")
+
+    return base / "barkup" / "config.toml"
+
 
 def resolve_config_paths(cli_path: Path | None = None) -> list[Path]:
     """Resolve all config paths in priority order (lowest to highest)"""
     paths = []
 
-    sys_path = Path("/etc/barkup/config.toml")
+    sys_path = get_sys_config_path()
     user_path = get_user_config_path()
     cwd_path = Path.cwd() / "barkup.config.toml"
 
@@ -45,24 +59,22 @@ def resolve_config_paths(cli_path: Path | None = None) -> list[Path]:
 
     return paths
 
+
 def deep_merge(base: dict, override: dict) -> dict:
     """
     Recursively merge override dict into base dict.
     Override values take precedence.
     """
     result = base.copy()
-    
+
     for key, value in override.items():
-        if (
-            key in result
-            and isinstance(result[key], dict)
-            and isinstance(value, dict)
-        ):
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
             result[key] = deep_merge(result[key], value)
         else:
             result[key] = value
-    
+
     return result
+
 
 def load_config(cli_path: Path | None = None) -> BarkupConfig:
     """Load and merge config from all sources"""
@@ -70,7 +82,9 @@ def load_config(cli_path: Path | None = None) -> BarkupConfig:
     paths = resolve_config_paths(cli_path)
 
     if not paths:
-        raise FileNotFoundError(f"No config file was found. Run 'barkup init' to create one.")
+        raise FileNotFoundError(
+            "No config file was found. Run 'barkup init' to create one."
+        )
 
     for path in paths:
         try:
@@ -79,8 +93,9 @@ def load_config(cli_path: Path | None = None) -> BarkupConfig:
                 raw_config = deep_merge(raw_config, parsed)
         except tomllib.TOMLDecodeError as e:
             raise ValueError(f"Invalid TOML in {path}: {e}")
-    
+
     return BarkupConfig(**raw_config)
+
 
 def init_config(force: bool = False) -> Path:
     """Initialize default config in user config directory"""
@@ -88,8 +103,10 @@ def init_config(force: bool = False) -> Path:
     config_path_exists = config_path.exists()
 
     if config_path_exists and not force:
-        raise FileExistsError(f"Config file already exists at '{config_path}'. Use --force to overwrite.")
-    
+        raise FileExistsError(
+            f"Config file already exists at '{config_path}'. Use --force to overwrite."
+        )
+
     config_path.parent.mkdir(parents=True, exist_ok=True)
 
     # default config
@@ -125,26 +142,19 @@ enabled = false
         print(f"Config file written at '{config_path}'.")
 
     return config_path
-        
-def update_config_runtime(config: dict, path: str, value: Any) -> None:
+
+
+def update_config_runtime(config: ResolvedLocalConfig, cmdStr: str) -> None:
     """
     Update config value at runtime.
-    
-    Example: 
+
+    Example:
     barkup --compression=false
-    update_config_runtime(config, "--compression=false", True)
     """
-    pass
-
-def set_config_section_infile(config: dict, section: str) -> None:
-    """
-    Docstring for set_config_section_infile
+    field, value = cmdStr.lstrip("-").split("=", 1)
+    configFields = [*config]
+    if field not in configFields:
+        print(f"{field} is not a valid config field.")
+        sys.exit(0)
     
-    :param config: Description
-    :type config: dict
-    :param section: Description
-    :type section: str
-
-    dev_deps: tomli_w
-    """
-    pass
+    config.field = value
