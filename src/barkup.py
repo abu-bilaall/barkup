@@ -1,5 +1,6 @@
 from pathlib import Path
 import shutil
+import sqlite3
 
 from config import load_config
 from exclude_patterns import resolve_excluded, FileToBackup
@@ -8,6 +9,8 @@ from config_resolvers import (
     resolve_local_config,
     resolve_cloud_config,
 )
+from database import open_connection, get_file_state, update_file_state, close_connection
+from hashing import calculate_file_hash
 
 
 def barkup_file(
@@ -41,42 +44,99 @@ def run_barkup(cli_path: Path | None = None) -> None:
         if provider.enabled
     ]
 
-    # local files prep
-    local_files_to_backup = resolve_excluded(local_config)
-    local_destination = Path(local_config.destination)
+    profile = local_config.profile_name
 
-    # cloud files prep
-    # TODO: resolve cloud files from cloud_configs when cloud backup is implemented
-    cloud_files_to_backup: list[FileToBackup] = []
-    cloud_dest = ""
+    # open state database
+    conn = open_connection()
 
-    # always show preview
-    dry_local_run(local_files_to_backup, local_destination)
-    if cloud_configs:
-        dry_cloud_run(cloud_files_to_backup, cloud_dest)
+    try:
+        # local files prep
+        all_local_files = resolve_excluded(local_config)
+        local_destination = Path(local_config.destination)
 
-    # if no real files to backup, exit early
-    if not local_files_to_backup and not cloud_files_to_backup:
-        return
+        # filter to only changed files
+        new_files, modified_files, unchanged_count = _filter_changed(conn, all_local_files, profile)
+        changed_files = new_files + modified_files
 
-    # if dry-run: ask if they want to proceed
-    if local_config.dry_run:
-        response = input("\nProceed with backup? [y/N]: ").strip().lower()
-        if response != "y":
-            print("Backup cancelled.")
+        # cloud files prep
+        # TODO: resolve cloud files from cloud_configs when cloud backup is implemented
+        cloud_files_to_backup: list[FileToBackup] = []
+        cloud_dest = ""
+
+        # always show preview of all non-excluded files
+        dry_local_run(all_local_files, local_destination)
+        if cloud_configs:
+            dry_cloud_run(cloud_files_to_backup, cloud_dest)
+
+        # show change summary
+        _print_change_summary(new_files, modified_files, unchanged_count)
+
+        # if nothing changed, exit early
+        if not changed_files and not cloud_files_to_backup:
+            print("\n✅ Everything is up to date. No files need backing up.")
             return
 
-    print("\nRunning backups...")
+        # if dry-run: ask if they want to proceed
+        if local_config.dry_run:
+            response = input("\nProceed with backup? [y/N]: ").strip().lower()
+            if response != "y":
+                print("Backup cancelled.")
+                return
 
-    if local_config:
-        run_local_barkup(local_files_to_backup, local_destination)
+        print("\nRunning backups...")
 
-    if cloud_configs:
-        run_cloud_barkup(cloud_configs)
+        if changed_files:
+            run_local_barkup(changed_files, local_destination, conn, profile)
+
+        if cloud_configs:
+            run_cloud_barkup(cloud_configs)
+    finally:
+        close_connection(conn)
 
 
-def run_local_barkup(files_to_backup: list[FileToBackup], destination: str) -> None:
-    """Run the local backup process."""
+def _filter_changed(
+    conn: sqlite3.Connection,
+    files: list[FileToBackup],
+    profile: str,
+) -> tuple[list[FileToBackup], list[FileToBackup], int]:
+    """Categorise files as new, modified, or unchanged.
+
+    Returns (new_files, modified_files, unchanged_count).
+    """
+    new = []
+    modified = []
+    unchanged_count = 0
+
+    for f in files:
+        state = get_file_state(conn, str(f.path), profile)
+        if state is None:
+            new.append(f)
+        elif calculate_file_hash(f.path) != state["hash"]:
+            modified.append(f)
+        else:
+            unchanged_count += 1
+
+    return new, modified, unchanged_count
+
+
+def _print_change_summary(
+    new: list[FileToBackup], modified: list[FileToBackup], unchanged: int
+) -> None:
+    """Show how many files are new, modified, or skipped."""
+    total = len(new) + len(modified) + unchanged
+    print(
+        f"\n📊 {len(new)} new, {len(modified)} modified, "
+        f"{unchanged} unchanged (skipped) — {total} total"
+    )
+
+
+def run_local_barkup(
+    files_to_backup: list[FileToBackup],
+    destination: Path,
+    conn: sqlite3.Connection,
+    profile: str,
+) -> None:
+    """Run the local backup process with state tracking."""
     print("\n======= Local Backup ======")
     print("Backing up files...")
     success_count = 0
@@ -89,10 +149,23 @@ def run_local_barkup(files_to_backup: list[FileToBackup], destination: str) -> N
                 destination=destination,
                 source_is_dir=file_info.source_is_dir,
             )
-            print(f"✓ Backed up {file_info.path.name} to {backed_up_path}")
+
+            # update state after successful copy
+            file_hash = calculate_file_hash(file_info.path)
+            file_size = file_info.path.stat().st_size
+            update_file_state(
+                conn,
+                profile=profile,
+                original_path=str(file_info.path),
+                backup_path=str(backed_up_path),
+                file_hash=file_hash,
+                size=file_size,
+            )
+
+            print(f"  ✓ {file_info.path.name}")
             success_count += 1
         except Exception as e:
-            print(f"✗ Failed to backup {file_info.path}: {e}")
+            print(f"  ✗ {file_info.path}: {e}")
 
     print(
         f"\n✅ Backup complete! {success_count}/{len(files_to_backup)} files backed up."
