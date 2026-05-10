@@ -9,6 +9,7 @@ import tomllib
 from typing import Any
 from config_models import BarkupConfig
 from config_resolvers import ResolvedLocalConfig
+from dataclasses import fields
 import sys
 
 
@@ -152,9 +153,9 @@ def update_config_runtime(config: ResolvedLocalConfig, cmdStr: str) -> None:
     barkup --compression=false
     """
     field, value = cmdStr.lstrip("-").split("=", 1)
-    configFields = [*config]
+    configFields = [f.name for f in fields(config)]
     if field not in configFields:
         print(f"{field} is not a valid config field.")
         sys.exit(0)
     
-    config.field = value
+    setattr(config, field, value)
