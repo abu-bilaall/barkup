@@ -9,7 +9,7 @@ from config_resolvers import (
     resolve_local_config,
     resolve_cloud_config,
 )
-from database import open_connection, has_file_changed, update_file_state, close_connection
+from database import open_connection, get_file_state, update_file_state, close_connection
 from hashing import calculate_file_hash
 
 
@@ -55,7 +55,8 @@ def run_barkup(cli_path: Path | None = None) -> None:
         local_destination = Path(local_config.destination)
 
         # filter to only changed files
-        changed_files, unchanged_count = _filter_changed(conn, all_local_files, profile)
+        new_files, modified_files, unchanged_count = _filter_changed(conn, all_local_files, profile)
+        changed_files = new_files + modified_files
 
         # cloud files prep
         # TODO: resolve cloud files from cloud_configs when cloud backup is implemented
@@ -68,7 +69,7 @@ def run_barkup(cli_path: Path | None = None) -> None:
             dry_cloud_run(cloud_files_to_backup, cloud_dest)
 
         # show change summary
-        _print_change_summary(changed_files, unchanged_count)
+        _print_change_summary(new_files, modified_files, unchanged_count)
 
         # if nothing changed, exit early
         if not changed_files and not cloud_files_to_backup:
@@ -97,27 +98,36 @@ def _filter_changed(
     conn: sqlite3.Connection,
     files: list[FileToBackup],
     profile: str,
-) -> tuple[list[FileToBackup], int]:
-    """Split files into changed (need backup) and unchanged (skip).
+) -> tuple[list[FileToBackup], list[FileToBackup], int]:
+    """Categorise files as new, modified, or unchanged.
 
-    Returns (changed_files, unchanged_count).
+    Returns (new_files, modified_files, unchanged_count).
     """
-    changed = []
+    new = []
+    modified = []
     unchanged_count = 0
 
     for f in files:
-        if has_file_changed(conn, f.path, profile):
-            changed.append(f)
+        state = get_file_state(conn, str(f.path), profile)
+        if state is None:
+            new.append(f)
+        elif calculate_file_hash(f.path) != state["hash"]:
+            modified.append(f)
         else:
             unchanged_count += 1
 
-    return changed, unchanged_count
+    return new, modified, unchanged_count
 
 
-def _print_change_summary(changed: list[FileToBackup], unchanged: int) -> None:
-    """Show how many files are new/modified vs skipped."""
-    total = len(changed) + unchanged
-    print(f"\n📊 {len(changed)} to backup, {unchanged} unchanged (skipped) — {total} total")
+def _print_change_summary(
+    new: list[FileToBackup], modified: list[FileToBackup], unchanged: int
+) -> None:
+    """Show how many files are new, modified, or skipped."""
+    total = len(new) + len(modified) + unchanged
+    print(
+        f"\n📊 {len(new)} new, {len(modified)} modified, "
+        f"{unchanged} unchanged (skipped) — {total} total"
+    )
 
 
 def run_local_barkup(
