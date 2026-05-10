@@ -41,7 +41,7 @@ exclude = [".tmp*"]
 # =====================
 [[cloud_providers]]
 # fields specific to this section
-provider = "'google_drive' or 'amazon_s3'"
+provider = "google_drive"
 enabled = true
 large_file_warning = 100 # MB threshold, default is 100
 
