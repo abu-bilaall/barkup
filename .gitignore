@@ -1,5 +1,6 @@
 # custom
 src/__pycache__
+barkup.config.toml
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

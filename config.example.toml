@@ -41,7 +41,7 @@ exclude = [".tmp*"]
 # =====================
 [[cloud_providers]]
 # fields specific to this section
-provider = "'google_drive' or 'amazon_s3'"
+provider = "google_drive"
 enabled = true
 large_file_warning = 100 # MB threshold, default is 100
 
@@ -53,16 +53,6 @@ exclude = ["*.tmp", ".git", "node_modules"]
 # Google Drive specific fields
 credentials_file = "/home/user/.barkup/google_drive.json"
 remote_folder = "Backups/Barkup"
-
-[[cloud_providers]]
-provider = "amazon_s3"
-enabled = false
-
-# Amazon S3 specific fields
-access_key = "YOUR_AWS_ACCESS_KEY"
-secret_key = "YOUR_AWS_SECRET_KEY"
-bucket = "my-barkup-bucket"
-region = "us-east-1"
 
 # =====================
 # Advanced / Optional

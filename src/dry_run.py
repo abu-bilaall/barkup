@@ -1,22 +1,14 @@
-"""
-Provides a dry-run output utility for previewing backup operations.
-
-Displays the files that would be backed up, grouped by their source path.
-Directory sources are summarised with a truncated file listing (first 5 files)
-to keep output readable when a large number of files are matched.
-"""
-
 from collections import defaultdict
 
 from exclude_patterns import FileToBackup
 
 def dry_run_output(files: list[FileToBackup]):
     """Show what would be backed up, grouped by source."""
-    
+
     by_source = defaultdict(list)
     for file_info in files:
         by_source[file_info.source].append(file_info.path)
-    
+
     for source, files in by_source.items():
         if source.is_file():
             print(f"📄 File: {source}")
@@ -29,3 +21,32 @@ def dry_run_output(files: list[FileToBackup]):
                 for f in files[:5]:
                     print(f"   - {f.relative_to(source)}")
                 print(f"   ... and {len(files) - 5} more files")
+
+
+def dry_local_run(local_backup: list[FileToBackup], local_dest: str) -> None:
+    """dry run for local backup"""
+    print("\n          [DRY RUN]")
+    print("======= Local Backup ======")
+    if not local_backup:
+        print("\nNo files to backup locally.")
+        return
+
+    print(f"🔎 Found {len(local_backup)} files to backup locally...")
+    dry_run_output(local_backup)
+
+    # show destination
+    print(f"\n🗃️  Destination: {local_dest}")
+
+
+def dry_cloud_run(cloud_backup: list[FileToBackup], cloud_dest: str) -> None:
+    """dry run for cloud backup"""
+    print("\n\n====== Cloud Backup ======")
+    if not cloud_backup:
+        print("No files to backup to cloud.")
+        return
+
+    print(f"🔎 Found {len(cloud_backup)} files to backup to cloud...")
+    dry_run_output(cloud_backup)
+
+    # show destination
+    print(f"\n🗃️  Destination: {cloud_dest}")
