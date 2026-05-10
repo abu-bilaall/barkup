@@ -41,16 +41,19 @@ def run_barkup(cli_path: Path | None = None) -> None:
         if provider.enabled
     ]
 
-    # files prep
+    # local files prep
     local_files_to_backup = resolve_excluded(local_config)
     local_destination = Path(local_config.destination)
 
-    cloud_files_to_backup = ""
+    # cloud files prep
+    # TODO: resolve cloud files from cloud_configs when cloud backup is implemented
+    cloud_files_to_backup: list[FileToBackup] = []
     cloud_dest = ""
 
     # always show preview
     dry_local_run(local_files_to_backup, local_destination)
-    dry_cloud_run(cloud_files_to_backup, cloud_dest)
+    if cloud_configs:
+        dry_cloud_run(cloud_files_to_backup, cloud_dest)
 
     # if no real files to backup, exit early
     if not local_files_to_backup and not cloud_files_to_backup:
