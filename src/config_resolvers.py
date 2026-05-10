@@ -11,12 +11,10 @@ Resolved types:
     ResolvedLocalConfig             -- local filesystem backup
     ResolvedCloudConfig             -- base class for cloud backups
     ResolvedGoogleDriveCloudConfig  -- Google Drive-specific config
-    ResolvedAmazonS3CloudConfig     -- Amazon S3-specific config
 
 Resolvers:
     resolve_local_config(general, local)      -> ResolvedLocalConfig
     resolve_cloud_config(general, provider)   -> ResolvedGoogleDriveCloudConfig
-                                             | ResolvedAmazonS3CloudConfig
 """
 
 from dataclasses import dataclass
@@ -47,7 +45,7 @@ class ResolvedCloudConfig:
     # general fields
     profile_name: str
     dry_run: bool
-    
+
     # fields native cloud
     provider: str
     enabled: bool
@@ -67,16 +65,6 @@ class ResolvedGoogleDriveCloudConfig(ResolvedCloudConfig):
     remote_folder: str
 
 
-@dataclass
-class ResolvedAmazonS3CloudConfig(ResolvedCloudConfig):
-    """Fully resolved config for cloud backup w/ Amazon S3."""
-
-    access_key: str
-    secret_key: str
-    bucket: str
-    region: str
-
-
 def resolve_local_config(
     general: GeneralConfig, local: LocalConfig
 ) -> ResolvedLocalConfig:
@@ -84,7 +72,7 @@ def resolve_local_config(
     return ResolvedLocalConfig(
         profile_name=general.profile_name,
         dry_run=general.dry_run,
-        destination=local.destination,
+        destination=local.destination if local.destination is not None else "",
         sources=local.sources if local.sources is not None else general.sources,
         compression=(
             local.compression if local.compression is not None else general.compression
@@ -95,7 +83,7 @@ def resolve_local_config(
 
 def resolve_cloud_config(
     general: GeneralConfig, provider: CloudProvider
-) -> ResolvedGoogleDriveCloudConfig | ResolvedAmazonS3CloudConfig:
+) -> ResolvedGoogleDriveCloudConfig:
     """Resolve effective cloud backup config based on provider."""
     profile_name = general.profile_name
     dry_run = general.dry_run
@@ -128,18 +116,4 @@ def resolve_cloud_config(
                 credentials_file=provider.credentials_file,
                 remote_folder=provider.remote_folder,
             )
-        case "amazon_s3":
-            return ResolvedAmazonS3CloudConfig(
-                profile_name=profile_name,
-                dry_run=dry_run,
-                sources=resolved_sources,
-                compression=resolved_compression,
-                exclude=resolved_exclude,
-                provider=provider.provider,
-                enabled=provider.enabled,
-                large_file_warning=provider.large_file_warning,
-                access_key=provider.access_key,
-                secret_key=provider.secret_key,
-                bucket=provider.bucket,
-                region=provider.region,
-            )
+

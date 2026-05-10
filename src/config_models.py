@@ -45,7 +45,7 @@ class LocalConfig(BaseModel):
     """
 
     # field specific to this section
-    destination: str
+    destination: str | None
 
     # optional fields, fall back to general defaults if not defined
     sources: list[str] | None = Field(default=None)
@@ -54,6 +54,7 @@ class LocalConfig(BaseModel):
 
     @field_validator("destination")
     @classmethod
+    # todo: should fix to only require when sources are defined under local
     def destination_not_empty(cls, v):
         if not v or not v.strip():
             raise ValueError("Local destination path cannot be empty.")
@@ -69,7 +70,7 @@ class CloudProvider(BaseModel):
     """
 
     # fields specific to this section
-    provider: Literal["google_drive", "amazon_s3"]
+    provider: Literal["google_drive"]
     enabled: bool = False
     large_file_warning: int = 100  # MB threhold
 
@@ -81,12 +82,6 @@ class CloudProvider(BaseModel):
     # Google Drive specific fields
     credentials_file: str | None = Field(default=None)
     remote_folder: str | None = Field(default=None)
-
-    # Amazon S3 specific fields
-    access_key: str | None = Field(default=None)
-    secret_key: str | None = Field(default=None)
-    bucket: str | None = Field(default=None)
-    region: str | None = Field(default=None)
 
     @model_validator(mode="after")
     def validate_provider_credentials(self):
@@ -107,21 +102,6 @@ class CloudProvider(BaseModel):
             if missing:
                 raise ValueError(
                     f"Google Drive requires these fields when enabled: {', '.join(missing)}"
-                )
-
-        if self.provider == "amazon_s3":
-            missing = [
-                field
-                for field, val in [
-                    ("access_key", self.access_key),
-                    ("secret_key", self.secret_key),
-                    ("bucket", self.bucket),
-                ]
-                if not val
-            ]
-            if missing:
-                raise ValueError(
-                    f"Amazon S3 requires these fields when enabled: {', '.join(missing)}"
                 )
 
         return self

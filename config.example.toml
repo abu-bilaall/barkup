@@ -54,16 +54,6 @@ exclude = ["*.tmp", ".git", "node_modules"]
 credentials_file = "/home/user/.barkup/google_drive.json"
 remote_folder = "Backups/Barkup"
 
-[[cloud_providers]]
-provider = "amazon_s3"
-enabled = false
-
-# Amazon S3 specific fields
-access_key = "YOUR_AWS_ACCESS_KEY"
-secret_key = "YOUR_AWS_SECRET_KEY"
-bucket = "my-barkup-bucket"
-region = "us-east-1"
-
 # =====================
 # Advanced / Optional
 # =====================
