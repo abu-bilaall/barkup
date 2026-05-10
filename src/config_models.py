@@ -52,13 +52,15 @@ class LocalConfig(BaseModel):
     compression: bool | None = Field(default=None)
     exclude: list[str] = Field(default_factory=list)
 
-    @field_validator("destination")
-    @classmethod
-    # todo: should fix to only require when sources are defined under local
-    def destination_not_empty(cls, v):
-        if not v or not v.strip():
-            raise ValueError("Local destination path cannot be empty.")
-        return v
+    @model_validator(mode="after")
+    def destination_required_when_sources_defined(self):
+        """Only require destination when sources are explicitly defined under [local]."""
+        if self.sources is not None:
+            if not self.destination or not self.destination.strip():
+                raise ValueError(
+                    "Local destination path cannot be empty when sources are defined under [local]."
+                )
+        return self
 
 
 class CloudProvider(BaseModel):
