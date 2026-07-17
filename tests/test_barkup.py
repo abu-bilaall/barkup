@@ -1,5 +1,3 @@
-import pytest
-from pathlib import Path
 from barkup import barkup_file
 
 
@@ -51,8 +49,8 @@ class TestBarkupFileFromFile:
 
 class TestBarkupFileFromDirectory:
     """Test barkup_file when source is a directory (source_is_dir=True).
-    
-    When source_is_dir=True, the file's relative path from source_root 
+
+    When source_is_dir=True, the file's relative path from source_root
     is preserved under a directory named after the source_root.
     """
 
