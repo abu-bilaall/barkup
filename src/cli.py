@@ -1,0 +1,89 @@
+"""
+CLI entry point for barkup.
+
+Defines the command group and the shared profile-resolution 
+helper that all subcommands reuse.
+"""
+
+import click
+from pathlib import Path
+
+
+def resolve_profile_name(cli_name: str | None, config) -> str:
+    """Resolve which profile to use based on three-tier precedence.
+
+    1. CLI --name flag (highest priority)
+    2. Config [general] profile_name field
+    3. Hardcoded "default" fallback
+    """
+    if cli_name:
+        return cli_name
+    if hasattr(config, "general") and hasattr(config.general, "profile_name"):
+        return config.general.profile_name
+    return "default"
+
+
+@click.group()
+@click.option("--config", type=click.Path(exists=True), help="Custom config file path")
+@click.pass_context
+def cli(ctx, config):
+    """Barkup - CLI backup tool for local and cloud storage."""
+    # Store config path in context for subcommands
+    ctx.ensure_object(dict)
+    ctx.obj["config_path"] = Path(config) if config else None
+
+
+@cli.command()
+def init():
+    """Create default config file."""
+    # Implementation in Step 1.2
+    pass
+
+
+@cli.command()
+@click.option("--name", help="Backup profile name")
+@click.option("--yes", is_flag=True, help="Skip confirmation prompts")
+@click.pass_context
+def run(ctx, name, yes):
+    """Run backup using config."""
+    # Implementation in Step 1.3
+    pass
+
+
+@cli.command("list")  # Renamed to avoid Python keyword
+@click.option("--name", help="Filter by profile name")
+def list_cmd(name):
+    """List all backed up files."""
+    # Implementation in Step 1.4
+    pass
+
+
+@cli.command()
+@click.option("--name", help="Show stats for specific profile")
+def status(name):
+    """Show backup statistics."""
+    # Implementation in Step 1.5
+    pass
+
+
+@cli.command()
+@click.option("--name", help="Verify specific profile")
+def verify(name):
+    """Verify backup integrity."""
+    # Implementation in Step 1.6
+    pass
+
+
+@cli.command()
+@click.argument("path", required=False)
+@click.option("--to", "destination", help="Restore to custom location")
+@click.option("--all", "restore_all", is_flag=True, help="Restore entire backup set")
+@click.option("--name", help="Profile name")
+def restore(path, destination, restore_all, name):
+    """Restore files from backup."""
+    # Implementation in Phase 2
+    pass
+
+
+if __name__ == "__main__":
+    cli()
