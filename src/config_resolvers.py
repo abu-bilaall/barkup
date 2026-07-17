@@ -61,8 +61,8 @@ class ResolvedCloudConfig:
 class ResolvedGoogleDriveCloudConfig(ResolvedCloudConfig):
     """Fully resolved config for cloud backup w/ Google Drive."""
 
-    credentials_file: str
-    remote_folder: str
+    credentials_file: str | None
+    remote_folder: str | None
 
 
 def resolve_local_config(
@@ -116,4 +116,3 @@ def resolve_cloud_config(
                 credentials_file=provider.credentials_file,
                 remote_folder=provider.remote_folder,
             )
-

@@ -8,8 +8,14 @@ from dry_run import dry_local_run, dry_cloud_run
 from config_resolvers import (
     resolve_local_config,
     resolve_cloud_config,
+    ResolvedGoogleDriveCloudConfig,
 )
-from database import open_connection, get_file_state, update_file_state, close_connection
+from database import (
+    open_connection,
+    get_file_state,
+    update_file_state,
+    close_connection,
+)
 from hashing import calculate_file_hash
 
 
@@ -55,7 +61,9 @@ def run_barkup(cli_path: Path | None = None) -> None:
         local_destination = Path(local_config.destination)
 
         # filter to only changed files
-        new_files, modified_files, unchanged_count = _filter_changed(conn, all_local_files, profile)
+        new_files, modified_files, unchanged_count = _filter_changed(
+            conn, all_local_files, profile
+        )
         changed_files = new_files + modified_files
 
         # cloud files prep
@@ -64,7 +72,7 @@ def run_barkup(cli_path: Path | None = None) -> None:
         cloud_dest = ""
 
         # always show preview of all non-excluded files
-        dry_local_run(all_local_files, local_destination)
+        dry_local_run(all_local_files, str(local_destination))
         if cloud_configs:
             dry_cloud_run(cloud_files_to_backup, cloud_dest)
 
@@ -172,5 +180,5 @@ def run_local_barkup(
     )
 
 
-def run_cloud_barkup(cloud_configs):
+def run_cloud_barkup(cloud_configs: list[ResolvedGoogleDriveCloudConfig]) -> None:
     pass

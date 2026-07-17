@@ -3,7 +3,7 @@ from pydantic import ValidationError
 import sys
 
 
-def main():
+def main() -> None:
     try:
         run_barkup()
     except ValidationError as e:

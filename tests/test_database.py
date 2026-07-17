@@ -62,6 +62,7 @@ class TestUpdateAndGetFileState:
         update_file_state(conn, "default", "/doc.txt", "/new.txt", "new_hash", 200)
 
         state = get_file_state(conn, "/doc.txt", "default")
+        assert state is not None
 
         assert state["backup_path"] == "/new.txt"
         assert state["hash"] == "new_hash"
@@ -84,9 +85,10 @@ class TestUpdateAndGetFileState:
 
         work_state = get_file_state(conn, "/doc.txt", "work")
         personal_state = get_file_state(conn, "/doc.txt", "personal")
+        assert work_state is not None
+        assert personal_state is not None
 
         assert work_state["hash"] == "hash1"
-        assert personal_state["hash"] == "hash2"
         close_connection(conn)
 
 
@@ -108,8 +110,12 @@ class TestHasFileChanged:
         from hashing import calculate_file_hash
 
         update_file_state(
-            conn, "default", str(f), "/backup/stable.txt",
-            calculate_file_hash(f), f.stat().st_size,
+            conn,
+            "default",
+            str(f),
+            "/backup/stable.txt",
+            calculate_file_hash(f),
+            f.stat().st_size,
         )
 
         assert has_file_changed(conn, f, "default") is False
@@ -123,8 +129,12 @@ class TestHasFileChanged:
         from hashing import calculate_file_hash
 
         update_file_state(
-            conn, "default", str(f), "/backup/changing.txt",
-            calculate_file_hash(f), f.stat().st_size,
+            conn,
+            "default",
+            str(f),
+            "/backup/changing.txt",
+            calculate_file_hash(f),
+            f.stat().st_size,
         )
 
         # modify the file

@@ -6,7 +6,6 @@ supports layered config: system -> user -> cwd -> cli
 import os
 from pathlib import Path
 import tomllib
-from typing import Any
 from config_models import BarkupConfig
 from config_resolvers import ResolvedLocalConfig
 from dataclasses import fields
@@ -157,5 +156,5 @@ def update_config_runtime(config: ResolvedLocalConfig, cmdStr: str) -> None:
     if field not in configFields:
         print(f"{field} is not a valid config field.")
         sys.exit(0)
-    
+
     setattr(config, field, value)

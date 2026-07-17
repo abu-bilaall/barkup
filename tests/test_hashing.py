@@ -1,5 +1,4 @@
 import hashlib
-from pathlib import Path
 from hashing import calculate_file_hash, CHUNK_SIZE
 
 

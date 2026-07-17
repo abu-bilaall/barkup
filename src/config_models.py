@@ -30,7 +30,7 @@ class GeneralConfig(BaseModel):
 
     @field_validator("sources")
     @classmethod
-    def sources_not_empty(cls, v):
+    def sources_not_empty(cls, v: list[str]) -> list[str]:
         if not v:
             raise ValueError("At least one source path is required in [general]")
         return v
@@ -53,7 +53,7 @@ class LocalConfig(BaseModel):
     exclude: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def destination_required_when_sources_defined(self):
+    def destination_required_when_sources_defined(self) -> "LocalConfig":
         """Only require destination when sources are explicitly defined under [local]."""
         if self.sources is not None:
             if not self.destination or not self.destination.strip():
@@ -86,7 +86,7 @@ class CloudProvider(BaseModel):
     remote_folder: str | None = Field(default=None)
 
     @model_validator(mode="after")
-    def validate_provider_credentials(self):
+    def validate_provider_credentials(self) -> "CloudProvider":
         """Only validate credentials if the provider is enabled."""
         if not self.enabled:
             return self
