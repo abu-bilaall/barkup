@@ -1,12 +1,13 @@
 """
 CLI entry point for barkup.
 
-Defines the command group and the shared profile-resolution 
+Defines the command group and the shared profile-resolution
 helper that all subcommands reuse.
 """
 
-import click
 from pathlib import Path
+
+import click
 
 
 def resolve_profile_name(cli_name: str | None, config) -> str:

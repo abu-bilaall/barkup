@@ -97,6 +97,7 @@ barkup restore           # Restore files
 2. If appropriate, test the functionality (you will see the test principles below). If it fails, fix the code until it passes.
 3. If feature is not done/completed, write code for another functionality neccessary for the feature.
 4. If feature is completed, update the docs if neccessary and prepare the PR back to development branch.
+5. Ask nicely whether to commit the files, push to the remote branch and open the PR. If granted, use the pr creator skill. When you've written the PR and prepare, ask the user to review before you execute. We love convntional commits and we love to keep our commit message under the suggested characters such that it is displayed nicely on remote (you know what I mean).
 
 ### Testing Patterns
 - Write tests for all new functionality
