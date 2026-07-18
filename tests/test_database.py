@@ -8,6 +8,8 @@ from database import (
     has_file_changed,
     update_file_state,
     close_connection,
+    get_backup_stats,
+    format_size,
 )
 
 
@@ -193,3 +195,71 @@ class TestListBackups:
         assert len(work_rows) == 1 and work_rows[0]["profile"] == "work"
         assert len(home_rows) == 1 and home_rows[0]["profile"] == "home"
         close_connection(conn)
+
+
+class TestGetBackupStats:
+    def test_empty_db_returns_empty_dict(self):
+        conn = _memory_connection()
+        stats = get_backup_stats(conn)
+        assert stats == {}
+        close_connection(conn)
+
+    def test_single_profile_aggregates(self):
+        conn = _memory_connection()
+        update_file_state(conn, "default", "/a.txt", "/b/a.txt", "ha", 100)
+        update_file_state(conn, "default", "/b.txt", "/b/b.txt", "hb", 200)
+
+        stats = get_backup_stats(conn)
+        assert len(stats) == 1
+        assert "default" in stats
+        assert stats["default"]["file_count"] == 2
+        assert stats["default"]["total_size"] == 300
+        assert stats["default"]["last_backup"] is not None
+        close_connection(conn)
+
+    def test_multiple_profiles(self):
+        conn = _memory_connection()
+        update_file_state(conn, "work", "/w1.txt", "/b/w1.txt", "hw1", 500)
+        update_file_state(conn, "work", "/w2.txt", "/b/w2.txt", "hw2", 600)
+        update_file_state(conn, "home", "/h1.txt", "/b/h1.txt", "hh1", 300)
+
+        stats = get_backup_stats(conn)
+        assert len(stats) == 2
+        assert stats["work"]["file_count"] == 2
+        assert stats["work"]["total_size"] == 1100
+        assert stats["home"]["file_count"] == 1
+        assert stats["home"]["total_size"] == 300
+        close_connection(conn)
+
+    def test_profile_filter(self):
+        conn = _memory_connection()
+        update_file_state(conn, "docs", "/d.txt", "/b/d.txt", "hd", 400)
+        update_file_state(conn, "pics", "/p.txt", "/b/p.txt", "hp", 800)
+
+        stats = get_backup_stats(conn, "docs")
+        assert len(stats) == 1
+        assert "docs" in stats
+        assert "pics" not in stats
+        assert stats["docs"]["file_count"] == 1
+        assert stats["docs"]["total_size"] == 400
+        close_connection(conn)
+
+
+class TestFormatSize:
+    def test_zero_bytes(self):
+        assert format_size(0) == "0 B"
+
+    def test_bytes(self):
+        assert format_size(512) == "512 B"
+
+    def test_kilobytes(self):
+        assert format_size(1024) == "1.0 KB"
+        assert format_size(1536) == "1.5 KB"
+
+    def test_megabytes(self):
+        assert format_size(1024**2) == "1.0 MB"
+        assert format_size(int(1.5 * 1024**2)) == "1.5 MB"
+
+    def test_gigabytes(self):
+        assert format_size(1024**3) == "1.0 GB"
+        assert format_size(int(2.8 * 1024**3)) == "2.8 GB"

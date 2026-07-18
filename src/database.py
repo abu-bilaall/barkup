@@ -142,3 +142,53 @@ def list_backups(
             "SELECT * FROM backups ORDER BY profile, original_path"
         ).fetchall()
     return rows
+
+
+def get_backup_stats(
+    conn: sqlite3.Connection,
+    profile: str | None = None,
+) -> dict:
+    """Return per-profile backup statistics.
+
+    With ``profile=None``, returns stats for all profiles.
+    With a profile given, returns stats only for that profile.
+    Returns empty dict when no backups exist.
+
+    Each profile's stats include:
+    - file_count: number of backed-up files
+    - total_size: sum of file sizes in bytes
+    - last_backup: most recent backup timestamp
+    """
+    if profile:
+        rows = conn.execute(
+            "SELECT profile, COUNT(*) AS count, COALESCE(SUM(size), 0) AS total, "
+            "MAX(last_backup) AS last FROM backups WHERE profile = ? GROUP BY profile",
+            (profile,),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT profile, COUNT(*) AS count, COALESCE(SUM(size), 0) AS total, "
+            "MAX(last_backup) AS last FROM backups GROUP BY profile"
+        ).fetchall()
+
+    return {
+        r["profile"]: {
+            "file_count": r["count"],
+            "total_size": r["total"],
+            "last_backup": r["last"],
+        }
+        for r in rows
+    }
+
+
+def format_size(size_bytes: int) -> str:
+    """Convert bytes to human-readable size string (1024-based)."""
+    if size_bytes == 0:
+        return "0 B"
+    if size_bytes < 1024:
+        return f"{size_bytes} B"
+    if size_bytes < 1024**2:
+        return f"{size_bytes / 1024:.1f} KB"
+    if size_bytes < 1024**3:
+        return f"{size_bytes / (1024**2):.1f} MB"
+    return f"{size_bytes / (1024**3):.1f} GB"
