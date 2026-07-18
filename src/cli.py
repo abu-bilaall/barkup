@@ -9,6 +9,8 @@ from pathlib import Path
 
 import click
 
+from config import get_user_config_path, init_config
+
 
 def resolve_profile_name(cli_name: str | None, config) -> str:
     """Resolve which profile to use based on three-tier precedence.
@@ -35,10 +37,25 @@ def cli(ctx, config):
 
 
 @cli.command()
-def init():
+@click.option(
+    "--force", is_flag=True, help="Overwrite an existing config without prompting"
+)
+def init(force):
     """Create default config file."""
-    # Implementation in Step 1.2
-    pass
+    config_path = get_user_config_path()
+
+    if config_path.exists():
+        if not force and not click.confirm(
+            f"Config already exists at '{config_path}'. Overwrite?"
+        ):
+            click.echo("Aborted. Existing config was left unchanged.")
+            return
+        force = True
+
+    init_config(force=force)
+
+    click.echo(f"Config created at '{config_path}'.")
+    click.echo(f"See '{config_path.parent / 'config.example.toml'}' for all options.")
 
 
 @cli.command()
