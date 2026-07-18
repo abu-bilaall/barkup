@@ -63,3 +63,55 @@ class TestResolveProfileName:
     def test_defaults_to_default_when_nothing_specified(self):
         config = _Config(profile_name=None)
         assert resolve_profile_name(None, config) == "default"
+
+
+class TestInitCommand:
+    @staticmethod
+    def _point_config_at(tmp_path, monkeypatch):
+        target = tmp_path / "config.toml"
+        monkeypatch.setattr("cli.get_user_config_path", lambda: target)
+        monkeypatch.setattr("config.get_user_config_path", lambda: target)
+        return target
+
+    def test_creates_config_file_when_missing(self, tmp_path, monkeypatch):
+        target = self._point_config_at(tmp_path, monkeypatch)
+
+        runner = CliRunner()
+        result = runner.invoke(cli, ["init"])
+
+        assert result.exit_code == 0
+        assert target.exists()
+        assert "[general]" in target.read_text()
+
+    def test_overwrites_with_force_flag(self, tmp_path, monkeypatch):
+        target = self._point_config_at(tmp_path, monkeypatch)
+        target.write_text("# pre-existing config")
+
+        runner = CliRunner()
+        result = runner.invoke(cli, ["init", "--force"])
+
+        assert result.exit_code == 0
+        assert "[general]" in target.read_text()
+
+    def test_prompts_before_overwriting(self, tmp_path, monkeypatch):
+        target = self._point_config_at(tmp_path, monkeypatch)
+        original = "# pre-existing config"
+        target.write_text(original)
+
+        runner = CliRunner()
+        result = runner.invoke(cli, ["init"], input="n\n")
+
+        assert result.exit_code == 0
+        assert target.read_text() == original
+        assert "Aborted" in result.output
+
+    def test_declines_overwrite_confirmation(self, tmp_path, monkeypatch):
+        target = self._point_config_at(tmp_path, monkeypatch)
+        original = "# pre-existing config"
+        target.write_text(original)
+
+        runner = CliRunner()
+        result = runner.invoke(cli, ["init"], input="y\n")
+
+        assert result.exit_code == 0
+        assert "[general]" in target.read_text()
