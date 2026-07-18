@@ -13,7 +13,7 @@ This plan establishes the complete development roadmap for Barkup from its curre
 - ✅ Incremental backups (only changed files) - COMPLETE
 - ✅ 30 unit tests passing (barkup, config, database, hashing modules)
 - ✅ Tests for exclude_patterns, dry_run, config_resolvers - COMPLETE
-- ✅ CLI commands framework (init + run + list + status done; verify pending)
+- ✅ CLI commands framework (init + run + list + status + verify done)
 - ❌ Restore functionality - NOT STARTED
 - ❌ Compression (ZIP) - NOT STARTED
 - ❌ Google Drive integration - NOT STARTED
@@ -234,8 +234,7 @@ def status(name):
 @click.option('--name', help='Verify specific profile')
 def verify(name):
     """Verify backup integrity."""
-    # Implementation in Step 1.6
-    pass
+# Implemented in Step 1.6
 
 @cli.command()
 @click.argument('path', required=False)
@@ -598,7 +597,7 @@ def status(name):
 
 ---
 
-#### Step 1.6: Implement `barkup verify` Command ❌ NOT STARTED
+#### Step 1.6: Implement `barkup verify` Command ✅ COMPLETE
 **Branch:** `feature/cli-verify` (branched from `dev` after Step 1.5 merge)
 
 Validates backup integrity: confirms the backup copy is intact AND flags stale sources.

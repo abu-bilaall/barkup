@@ -10,6 +10,9 @@ from database import (
     close_connection,
     get_backup_stats,
     format_size,
+    get_all_backups,
+    verify_backup,
+    calculate_file_hash,
 )
 
 
@@ -263,3 +266,71 @@ class TestFormatSize:
     def test_gigabytes(self):
         assert format_size(1024**3) == "1.0 GB"
         assert format_size(int(2.8 * 1024**3)) == "2.8 GB"
+
+
+class TestGetAllBackups:
+    def test_empty_db_returns_empty_list(self, monkeypatch):
+        conn = _memory_connection()
+        # patch open_connection to use in‑memory DB
+        import database
+
+        monkeypatch.setattr(database, "open_connection", lambda *a, **k: conn)
+        rows = get_all_backups(conn)
+        assert rows == []
+
+    def test_returns_rows_filtered_by_profile(self, monkeypatch, tmp_path):
+        conn = _memory_connection()
+        # create two dummy files to have real hashes
+        f1 = tmp_path / "a.txt"
+        f1.write_text("hello")
+        f2 = tmp_path / "b.txt"
+        f2.write_text("world")
+        hash1 = calculate_file_hash(str(f1))
+        hash2 = calculate_file_hash(str(f2))
+        update_file_state(
+            conn, "profile1", str(f1), "/bk/a.txt", hash1, f1.stat().st_size
+        )
+        update_file_state(
+            conn, "profile2", str(f2), "/bk/b.txt", hash2, f2.stat().st_size
+        )
+        import database
+
+        monkeypatch.setattr(database, "open_connection", lambda *a, **k: conn)
+        rows_all = get_all_backups(conn)
+        assert len(rows_all) == 2
+        rows_profile1 = get_all_backups(conn, "profile1")
+        assert len(rows_profile1) == 1
+        assert rows_profile1[0]["profile"] == "profile1"
+
+
+class TestVerifyBackup:
+    def test_missing_file_returns_missing(self, monkeypatch, tmp_path):
+        conn = _memory_connection()
+        f = tmp_path / "a.txt"
+        f.write_text("data")
+        hash_val = calculate_file_hash(str(f))
+        update_file_state(conn, "p", str(f), "/bk/a.txt", hash_val, f.stat().st_size)
+        # delete the file to simulate missing
+        f.unlink()
+        row = get_all_backups(conn, "p")[0]
+        assert verify_backup(row) == "missing"
+
+    def test_mismatch_returns_mismatch(self, monkeypatch, tmp_path):
+        conn = _memory_connection()
+        f = tmp_path / "a.txt"
+        f.write_text("original")
+        good_hash = calculate_file_hash(str(f))
+        update_file_state(conn, "p", str(f), "/bk/a.txt", good_hash, f.stat().st_size)
+        # modify file
+        f.write_text("changed")
+        row = get_all_backups(conn, "p")[0]
+        assert verify_backup(row) == "mismatch"
+
+    def test_ok_returns_ok(self, monkeypatch, tmp_path):
+        conn = _memory_connection()
+        f = tmp_path / "a.txt"
+        f.write_text("unchanged")
+        h = calculate_file_hash(str(f))
+        update_file_state(conn, "p", str(f), "/bk/a.txt", h, f.stat().st_size)
+        row = get_all_backups(conn, "p")[0]
+        assert verify_backup(row) == "ok"
