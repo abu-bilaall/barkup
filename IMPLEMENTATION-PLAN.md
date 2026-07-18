@@ -475,7 +475,201 @@ class TestRunCommand:
 
 ---
 
-**Note:** Missing Steps (originally, 1.4-1.6 deleted by the planning agent). When you finished step 1.3, we will need to find out the commands we're yet to implement and prepare the plan for them. Only after we've created and finished the implementation for the CLI commands can we move to phase 2.
+#### Step 1.4: Implement `barkup list` Command
+**Branch:** `feature/cli-list` (branched from `dev` after Step 1.3 merge)
+
+Wraps the DB layer to list backed-up files.
+
+**New behavior needed:**
+1. `--name` flag to filter by a single profile
+2. When `--name` is omitted, list **all** profiles (overview command, not just `"default"`)
+3. Readable per-file output: source -> backup path, size, last-backup date
+4. Friendly message when nothing has been backed up
+
+**Update:** `src/database.py` - add `list_backups()`:
+```python
+def list_backups(conn, profile=None) -> list[sqlite3.Row]:
+    if profile:
+        return conn.execute(
+            "SELECT * FROM backups WHERE profile = ? ORDER BY original_path",
+            (profile,),
+        ).fetchall()
+    return conn.execute(
+        "SELECT * FROM backups ORDER BY profile, original_path"
+    ).fetchall()
+```
+
+**Update:** `src/cli.py` - `list_cmd()`:
+```python
+@cli.command("list")
+@click.option("--name", help="Filter by profile name")
+def list_cmd(name):
+    """List all backed up files."""
+    from database import open_connection, close_connection, list_backups
+
+    conn = open_connection()
+    try:
+        rows = list_backups(conn, name)
+    finally:
+        close_connection(conn)
+
+    if not rows:
+        click.echo("No backups found.")
+        return
+
+    for row in rows:
+        click.echo(f"{row['original_path']} -> {row['backup_path']}")
+        click.echo(f"  {row['size']} bytes, backed up {row['last_backup']}")
+```
+
+**Testing:** Add to `tests/test_database.py` and `tests/test_cli.py`:
+- `list_backups` returns all rows when `profile=None` and filters when given; respects profile isolation.
+- `list` command prints each file; empty DB prints "No backups found."
+
+**Acceptance:** `uv run barkup list` shows every backed-up file across profiles; `--name` scopes to one profile.
+
+---
+
+#### Step 1.5: Implement `barkup status` Command
+**Branch:** `feature/cli-status` (branched from `dev` after Step 1.4 merge)
+
+Shows backup statistics per profile.
+
+**New behavior needed:**
+1. `--name` flag to scope to one profile
+2. When `--name` is omitted, show stats for **all** profiles
+3. Per-profile: file count, total size, last-backup time
+4. Human-readable size (a small `format_size()` helper may be added to `database.py` or a utils module)
+
+**Update:** `src/database.py` - add `get_backup_stats()`:
+```python
+def get_backup_stats(conn, profile=None) -> dict:
+    if profile:
+        rows = conn.execute(
+            "SELECT profile, COUNT(*) AS count, COALESCE(SUM(size), 0) AS total, "
+            "MAX(last_backup) AS last FROM backups WHERE profile = ? GROUP BY profile",
+            (profile,),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT profile, COUNT(*) AS count, COALESCE(SUM(size), 0) AS total, "
+            "MAX(last_backup) AS last FROM backups GROUP BY profile"
+        ).fetchall()
+    return {
+        r["profile"]: {
+            "file_count": r["count"],
+            "total_size": r["total"],
+            "last_backup": r["last"],
+        }
+        for r in rows
+    }
+```
+
+**Update:** `src/cli.py` - `status()`:
+```python
+@cli.command()
+@click.option("--name", help="Show stats for specific profile")
+def status(name):
+    """Show backup statistics."""
+    from database import open_connection, close_connection, get_backup_stats
+
+    conn = open_connection()
+    try:
+        stats = get_backup_stats(conn, name)
+    finally:
+        close_connection(conn)
+
+    if not stats:
+        click.echo("No backups found.")
+        return
+
+    for profile, s in stats.items():
+        click.echo(f"Profile: {profile}")
+        click.echo(f"  Files: {s['file_count']}")
+        click.echo(f"  Total size: {s['total_size']} bytes")
+        click.echo(f"  Last backup: {s['last_backup']}")
+```
+
+**Testing:**
+- `get_backup_stats` returns per-profile aggregates; profile filter works; empty DB -> `{}`.
+- `status` prints per-profile stats; empty DB prints "No backups found."
+
+**Acceptance:** `uv run barkup status` shows file counts, total sizes, and last-backup times per profile; `--name` scopes.
+
+---
+
+#### Step 1.6: Implement `barkup verify` Command
+**Branch:** `feature/cli-verify` (branched from `dev` after Step 1.5 merge)
+
+Validates backup integrity: confirms the backup copy is intact AND flags stale sources.
+
+**New behavior needed:**
+1. `--name` flag to scope to one profile
+2. When `--name` is omitted, verify **all** profiles
+3. For each backup row, check `backup_path` exists and its hash matches the stored `hash` (copy integrity -> `MISSING`/`CORRUPT`)
+4. Also re-hash the source `original_path`: if it differs from the stored `hash`, mark `STALE` (source changed since last backup)
+5. Print `OK` / `MISSING` / `CORRUPT` / `STALE` per file plus a summary
+6. Exit code `0` if everything is `OK`, `1` if any `MISSING`/`CORRUPT`/`STALE`
+
+**Update:** `src/database.py` - add `verify_backups()`:
+```python
+def verify_backups(conn, profile=None) -> list[tuple[sqlite3.Row, str]]:
+    rows = list_backups(conn, profile)
+    results = []
+    for row in rows:
+        backup = Path(row["backup_path"])
+        source = Path(row["original_path"])
+        if not backup.exists():
+            results.append((row, "missing"))
+            continue
+        if calculate_file_hash(backup) != row["hash"]:
+            results.append((row, "corrupt"))
+            continue
+        if source.exists() and calculate_file_hash(source) != row["hash"]:
+            results.append((row, "stale"))
+            continue
+        results.append((row, "ok"))
+    return results
+```
+
+**Update:** `src/cli.py` - `verify()`:
+```python
+@cli.command()
+@click.option("--name", help="Verify specific profile")
+def verify(name):
+    """Verify backup integrity."""
+    import sys
+
+    from database import open_connection, close_connection, verify_backups
+
+    conn = open_connection()
+    try:
+        results = verify_backups(conn, name)
+    finally:
+        close_connection(conn)
+
+    if not results:
+        click.echo("No backups found.")
+        sys.exit(0)
+
+    problems = 0
+    for row, status in results:
+        click.echo(f"{status.upper()}: {row['original_path']}")
+        if status != "ok":
+            problems += 1
+    click.echo(f"\n{len(results) - problems} OK, {problems} issue(s)")
+    sys.exit(1 if problems else 0)
+```
+
+**Testing:**
+- `verify_backups`: `ok` when copy matches and source unchanged; `missing` when backup absent; `corrupt` when copy hash differs; `stale` when source changed.
+- `verify` command: prints each status; exit `0` when all `OK`; exit `1` when any problem.
+
+**Acceptance:** `uv run barkup verify` reports intact/corrupt/missing/stale backups and returns a non-zero exit code when any issue exists; `--name` scopes.
+
+---
+
+**Note:** Steps 1.4-1.6 were deleted by the original planning agent and have been rediscovered and specified above (2026-07-17). They complete the read/inspect CLI commands (`list` / `status` / `verify`). Confirmed decisions: read commands show all profiles when `--name` is omitted; `verify` checks both backup-copy integrity and stale sources. Only after all CLI commands are implemented do we move to Phase 2.
 
 ### Phase 2: MVP Feature - Restore Functionality
 
