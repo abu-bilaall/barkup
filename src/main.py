@@ -1,6 +1,9 @@
-from barkup import run_barkup
-from pydantic import ValidationError
 import sys
+
+from pydantic import ValidationError
+
+from barkup import run_barkup
+from cli import cli
 
 
 def main() -> None:
@@ -22,4 +25,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    cli()

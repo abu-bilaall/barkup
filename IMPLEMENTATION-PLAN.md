@@ -92,6 +92,43 @@ Common patterns to watch:
 
 ---
 
+#### Step 0.3: Add Quality Gates - Pre-commit, Lint, CI
+**Branch:** `feature/cli-framework` (added alongside Step 1.1)
+
+**Pre-commit hooks (the Python equivalent of husky + lint-staged):**
+Install `pre-commit` + `ruff` as dev dependencies and add `.pre-commit-config.yaml`:
+- `ruff` hook (`--fix`) - linting only (unused imports, undefined names, import sorting)
+- `black` hook - formatting, runs automatically on every commit
+
+Run `uv run pre-commit install` once to activate the git hook. This mirrors
+husky: files are auto-checked/formatted before each commit.
+
+**Ruff config (`[tool.ruff]` in `pyproject.toml`):** scoped to lint rules only
+(`select = ["F", "I"]`). Formatting (including line length) is owned by `black`,
+so ruff must NOT select the `E` (pycodestyle) category - doing so duplicates
+black and conflicts with it.
+
+**CI (GitHub Actions):** `.github/workflows/ci.yml`
+- Trigger: `pull_request` on `branches: [dev, main]` (runs before merge)
+- Job `lint`: `uv run ruff check .` + `uv run black --check .`
+- Job `test`: `uv run pytest -v`
+- Type-checking (pyright/basedpyright) is deliberately deferred - see Step 3.1b.
+
+**README:** Added a CI status badge (placeholder `[username]`) pointing at
+`?branch=dev`, since active development happens on `dev`.
+
+**Files created/modified:**
+- `.pre-commit-config.yaml` (new)
+- `.github/workflows/ci.yml` (new)
+- `README.md` (badge added)
+- `pyproject.toml` (`[tool.ruff]` config; dev deps `pre-commit`, `ruff`)
+
+**Acceptance:** `uv run pre-commit run --all-files` passes; `uv run ruff check .`
+and `uv run black --check .` are clean; `uv run pytest` is green; CI runs on PRs
+targeting `dev` and `main`.
+
+---
+
 ### Phase 1: MVP Feature - CLI Commands Framework
 
 **Default Profile Resolution:**
@@ -854,6 +891,42 @@ uv pip uninstall barkup
 ```
 
 **Acceptance:** `uv pip install -e .` installs successfully, `barkup` command available globally, `python -m build` creates wheel/sdist.
+
+---
+
+#### Step 3.1b: CD - Automated PyPI Publish (Release Workflow)
+**Branch:** `feature/packaging` (same as 3.1)
+
+Build and publish is **Continuous Deployment (CD)**, distinct from the CI
+pipeline added in Step 0.3. It runs only on tagged releases, not on every PR,
+so it never blocks normal development.
+
+**Create:** `.github/workflows/release.yml`
+```yaml
+name: Release
+on:
+  push:
+    tags: ["v*"]
+jobs:
+  publish:
+    name: Build and publish to PyPI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Build distribution
+        run: uv build
+      - name: Publish to PyPI
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_TOKEN }}
+        run: uv publish
+```
+
+**Prerequisites:** Requires the `[build-system]` (hatchling) added in Step 3.1 so
+`uv build` can produce wheel + sdist, and a `PYPI_TOKEN` repository secret.
+
+**Acceptance:** Pushing a `v*` tag builds the distribution and publishes it to
+PyPI; CI (Step 0.3) remains the gate for PRs into `dev`/`main`.
 
 ---
 

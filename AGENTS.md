@@ -97,6 +97,33 @@ barkup restore           # Restore files
 2. If appropriate, test the functionality (you will see the test principles below). If it fails, fix the code until it passes.
 3. If feature is not done/completed, write code for another functionality neccessary for the feature.
 4. If feature is completed, update the docs if neccessary and prepare the PR back to development branch.
+5. When a task is complete, ask the user whether to commit, push, and open a PR.
+   - Base branch: check rather than assume. Inspect branch naming and recent merge
+     targets, or ask the user which branch the PR should target.
+   - Commits: use Conventional Commits (e.g. `feat(cli): add X`), keep the subject
+     under 72 chars, keep the message simple (subject + short body is fine), and never
+     add AI/agent attribution or "Generated with ..." lines. Prefer focused, atomic commits.
+   - PR drafting skill: look for the `pr-creator` skill in the location where skills are
+     configured for this agent. If it is found there, use it; if not, ask the user where it is.
+   - PR template: first look for the template in the same directory as the skill; if it is
+     not there, check the project (e.g. `.github/PULL_REQUEST_TEMPLATE.md`); if still not
+     found, ask the user. Use that template as the body format, put the title only in the
+     PR title argument (do not duplicate it in the body), and list only the "Type of Change"
+     options that apply. Follow the template's `title:` convention, e.g. `[Feature 05] - <summary>`.
+   - Show the user the title, the filled body, and the `gh pr create --base <branch> ...`
+     command, then wait for explicit approval before pushing or creating the PR.
+
+6. When wrapping up a feature branch before starting the next step:
+   - Return to the base branch (e.g. `dev`) and branch off it for the next step.
+   - Use this wrap-up workflow. The first three steps are the user's responsibility;
+     the agent must remind/urge the user to complete them and must not merge without approval:
+     1. User reviews the PR.
+     2. User reviews the changes.
+     3. User makes any last corrections.
+     4. After the above, the agent squash-merges the branch into the base branch as a single
+        commit whose message summarizes the branch deliverables and references the PR number
+        (e.g. `#7`). The agent must get explicit approval for both the squash-merge and the
+        commit message before executing.
 
 ### Testing Patterns
 - Write tests for all new functionality
