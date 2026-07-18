@@ -115,3 +115,125 @@ class TestInitCommand:
 
         assert result.exit_code == 0
         assert "[general]" in target.read_text()
+
+
+def _stats():
+    return {
+        "files_backed_up": 0,
+        "new_files": 0,
+        "modified_files": 0,
+        "skipped_files": 0,
+    }
+
+
+class TestRunCommand:
+    @staticmethod
+    def _fake_config(monkeypatch, profile_name):
+        config = _Config(profile_name=profile_name)
+        monkeypatch.setattr("cli.load_config", lambda cli_path=None: config)
+        return config
+
+    def test_runs_backup_successfully(self, monkeypatch):
+        self._fake_config(monkeypatch, "default")
+        captured = {}
+
+        def fake_run(cli_path=None, profile_name=None, skip_confirm=False):
+            captured["profile_name"] = profile_name
+            captured["skip_confirm"] = skip_confirm
+            return {
+                "files_backed_up": 2,
+                "new_files": 1,
+                "modified_files": 1,
+                "skipped_files": 3,
+            }
+
+        monkeypatch.setattr("cli.run_barkup", fake_run)
+
+        runner = CliRunner()
+        result = runner.invoke(cli, ["run"])
+
+        assert result.exit_code == 0
+        assert captured["profile_name"] == "default"
+        assert "Backup completed successfully" in result.output
+        assert "New files: 1" in result.output
+        assert "Modified files: 1" in result.output
+        assert "Skipped (unchanged): 3" in result.output
+
+    def test_yes_flag_skips_confirmation(self, monkeypatch):
+        self._fake_config(monkeypatch, "default")
+        captured = {}
+
+        def fake_run(cli_path=None, profile_name=None, skip_confirm=False):
+            captured["skip_confirm"] = skip_confirm
+            return _stats()
+
+        monkeypatch.setattr("cli.run_barkup", fake_run)
+
+        runner = CliRunner()
+        result = runner.invoke(cli, ["run", "--yes"])
+
+        assert result.exit_code == 0
+        assert captured["skip_confirm"] is True
+
+    def test_name_flag_overrides_profile(self, monkeypatch):
+        self._fake_config(monkeypatch, "default")
+        captured = {}
+
+        def fake_run(cli_path=None, profile_name=None, skip_confirm=False):
+            captured["profile_name"] = profile_name
+            return _stats()
+
+        monkeypatch.setattr("cli.run_barkup", fake_run)
+
+        runner = CliRunner()
+        result = runner.invoke(cli, ["run", "--name", "custom"])
+
+        assert result.exit_code == 0
+        assert captured["profile_name"] == "custom"
+        assert "Running backup for profile: custom" in result.output
+
+    def test_uses_config_profile_when_no_name_flag(self, monkeypatch):
+        self._fake_config(monkeypatch, "myprofile")
+        captured = {}
+
+        def fake_run(cli_path=None, profile_name=None, skip_confirm=False):
+            captured["profile_name"] = profile_name
+            return _stats()
+
+        monkeypatch.setattr("cli.run_barkup", fake_run)
+
+        runner = CliRunner()
+        result = runner.invoke(cli, ["run"])
+
+        assert result.exit_code == 0
+        assert captured["profile_name"] == "myprofile"
+
+    def test_defaults_to_default_profile(self, monkeypatch):
+        self._fake_config(monkeypatch, None)
+        captured = {}
+
+        def fake_run(cli_path=None, profile_name=None, skip_confirm=False):
+            captured["profile_name"] = profile_name
+            return _stats()
+
+        monkeypatch.setattr("cli.run_barkup", fake_run)
+
+        runner = CliRunner()
+        result = runner.invoke(cli, ["run"])
+
+        assert result.exit_code == 0
+        assert captured["profile_name"] == "default"
+
+    def test_keyboard_interrupt_exits_gracefully(self, monkeypatch):
+        self._fake_config(monkeypatch, "default")
+
+        def fake_run(cli_path=None, profile_name=None, skip_confirm=False):
+            raise KeyboardInterrupt()
+
+        monkeypatch.setattr("cli.run_barkup", fake_run)
+
+        runner = CliRunner()
+        result = runner.invoke(cli, ["run"])
+
+        assert result.exit_code == 2
+        assert "cancelled by user" in result.output

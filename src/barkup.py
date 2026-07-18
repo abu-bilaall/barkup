@@ -40,7 +40,11 @@ def barkup_file(
     return dest_file
 
 
-def run_barkup(cli_path: Path | None = None) -> None:
+def run_barkup(
+    cli_path: Path | None = None,
+    profile_name: str | None = None,
+    skip_confirm: bool = False,
+) -> dict:
     config = load_config(cli_path)
 
     local_config = resolve_local_config(config.general, config.local)
@@ -49,6 +53,9 @@ def run_barkup(cli_path: Path | None = None) -> None:
         for provider in config.cloud_providers
         if provider.enabled
     ]
+
+    if profile_name:
+        local_config.profile_name = profile_name
 
     profile = local_config.profile_name
 
@@ -82,14 +89,24 @@ def run_barkup(cli_path: Path | None = None) -> None:
         # if nothing changed, exit early
         if not changed_files and not cloud_files_to_backup:
             print("\n✅ Everything is up to date. No files need backing up.")
-            return
+            return {
+                "files_backed_up": 0,
+                "new_files": len(new_files),
+                "modified_files": len(modified_files),
+                "skipped_files": unchanged_count,
+            }
 
         # if dry-run: ask if they want to proceed
-        if local_config.dry_run:
+        if local_config.dry_run and not skip_confirm:
             response = input("\nProceed with backup? [y/N]: ").strip().lower()
             if response != "y":
                 print("Backup cancelled.")
-                return
+                return {
+                    "files_backed_up": 0,
+                    "new_files": len(new_files),
+                    "modified_files": len(modified_files),
+                    "skipped_files": unchanged_count,
+                }
 
         print("\nRunning backups...")
 
@@ -100,6 +117,13 @@ def run_barkup(cli_path: Path | None = None) -> None:
             run_cloud_barkup(cloud_configs)
     finally:
         close_connection(conn)
+
+    return {
+        "files_backed_up": len(changed_files) + len(cloud_files_to_backup),
+        "new_files": len(new_files),
+        "modified_files": len(modified_files),
+        "skipped_files": unchanged_count,
+    }
 
 
 def _filter_changed(

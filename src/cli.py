@@ -5,11 +5,13 @@ Defines the command group and the shared profile-resolution
 helper that all subcommands reuse.
 """
 
+import sys
 from pathlib import Path
 
 import click
 
-from config import get_user_config_path, init_config
+from barkup import run_barkup
+from config import get_user_config_path, init_config, load_config
 
 
 def resolve_profile_name(cli_name: str | None, config) -> str:
@@ -64,8 +66,33 @@ def init(force):
 @click.pass_context
 def run(ctx, name, yes):
     """Run backup using config."""
-    # Implementation in Step 1.3
-    pass
+    config_path = ctx.obj.get("config_path")
+
+    try:
+        config = load_config(config_path)
+
+        # Resolve profile name using three-tier fallback.
+        profile = resolve_profile_name(name, config)
+
+        click.echo(f"Running backup for profile: {profile}")
+        stats = run_barkup(
+            cli_path=config_path,
+            profile_name=profile,
+            skip_confirm=yes,
+        )
+
+        click.echo("\n✓ Backup completed successfully")
+        click.echo(f"  New files: {stats['new_files']}")
+        click.echo(f"  Modified files: {stats['modified_files']}")
+        click.echo(f"  Skipped (unchanged): {stats['skipped_files']}")
+        sys.exit(0)
+
+    except FileNotFoundError as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+    except KeyboardInterrupt:
+        click.echo("\nBackup cancelled by user")
+        sys.exit(2)
 
 
 @cli.command("list")  # Renamed to avoid Python keyword
