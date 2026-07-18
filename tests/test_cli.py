@@ -237,3 +237,48 @@ class TestRunCommand:
 
         assert result.exit_code == 2
         assert "cancelled by user" in result.output
+
+
+class TestListCommand:
+    @staticmethod
+    def _seed(monkeypatch):
+        import database
+        from database import open_connection, update_file_state
+        from pathlib import Path
+
+        conn = open_connection(db_path=Path(":memory:"))
+        update_file_state(conn, "default", "/home/user/a.txt", "/bk/a.txt", "h1", 10)
+        update_file_state(conn, "docs", "/home/user/b.txt", "/bk/b.txt", "h2", 20)
+        monkeypatch.setattr(database, "open_connection", lambda *a, **k: conn)
+        return conn
+
+    def test_lists_all_profiles_when_name_omitted(self, monkeypatch):
+        self._seed(monkeypatch)
+        runner = CliRunner()
+        result = runner.invoke(cli, ["list"])
+        assert result.exit_code == 0
+        assert "/home/user/a.txt" in result.output
+        assert "/bk/a.txt" in result.output
+        assert "/home/user/b.txt" in result.output
+        assert "/bk/b.txt" in result.output
+
+    def test_filters_by_name(self, monkeypatch):
+        self._seed(monkeypatch)
+        runner = CliRunner()
+        result = runner.invoke(cli, ["list", "--name", "docs"])
+        assert result.exit_code == 0
+        assert "/home/user/b.txt" in result.output
+        assert "/bk/b.txt" in result.output
+        assert "/home/user/a.txt" not in result.output
+
+    def test_empty_db_prints_message(self, monkeypatch):
+        import database
+        from database import open_connection
+        from pathlib import Path
+
+        conn = open_connection(db_path=Path(":memory:"))
+        monkeypatch.setattr(database, "open_connection", lambda *a, **k: conn)
+        runner = CliRunner()
+        result = runner.invoke(cli, ["list"])
+        assert result.exit_code == 0
+        assert "No backups found." in result.output
