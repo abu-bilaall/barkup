@@ -120,8 +120,28 @@ def list_cmd(name):
 @click.option("--name", help="Show stats for specific profile")
 def status(name):
     """Show backup statistics."""
-    # Implementation in Step 1.5
-    pass
+    from database import (
+        open_connection,
+        close_connection,
+        get_backup_stats,
+        format_size,
+    )
+
+    conn = open_connection()
+    try:
+        stats = get_backup_stats(conn, name)
+    finally:
+        close_connection(conn)
+
+    if not stats:
+        click.echo("No backups found.")
+        return
+
+    for profile, s in stats.items():
+        click.echo(f"Profile: {profile}")
+        click.echo(f"  Files: {s['file_count']}")
+        click.echo(f"  Total size: {format_size(s['total_size'])}")
+        click.echo(f"  Last backup: {s['last_backup']}")
 
 
 @cli.command()

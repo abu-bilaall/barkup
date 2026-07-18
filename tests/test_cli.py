@@ -282,3 +282,65 @@ class TestListCommand:
         result = runner.invoke(cli, ["list"])
         assert result.exit_code == 0
         assert "No backups found." in result.output
+
+
+class TestStatusCommand:
+    @staticmethod
+    def _seed(monkeypatch):
+        """Set up in-memory DB with test data."""
+        import database
+        from database import open_connection, update_file_state
+        from pathlib import Path
+
+        conn = open_connection(db_path=Path(":memory:"))
+        update_file_state(conn, "work", "/a.txt", "/bk/a.txt", "ha", 1024)
+        update_file_state(conn, "work", "/b.txt", "/bk/b.txt", "hb", 2048)
+        update_file_state(conn, "home", "/c.txt", "/bk/c.txt", "hc", 512)
+        monkeypatch.setattr(database, "open_connection", lambda *a, **k: conn)
+        return conn
+
+    def test_no_backups_message(self, monkeypatch):
+        import database
+        from database import open_connection
+        from pathlib import Path
+
+        conn = open_connection(db_path=Path(":memory:"))
+        monkeypatch.setattr(database, "open_connection", lambda *a, **k: conn)
+        runner = CliRunner()
+        result = runner.invoke(cli, ["status"])
+        assert result.exit_code == 0
+        assert "No backups found." in result.output
+
+    def test_single_profile_output(self, monkeypatch):
+        import database
+        from database import open_connection, update_file_state
+        from pathlib import Path
+
+        conn = open_connection(db_path=Path(":memory:"))
+        update_file_state(conn, "docs", "/d.txt", "/bk/d.txt", "hd", 4096)
+        monkeypatch.setattr(database, "open_connection", lambda *a, **k: conn)
+        runner = CliRunner()
+        result = runner.invoke(cli, ["status"])
+        assert result.exit_code == 0
+        assert "Profile: docs" in result.output
+        assert "Files: 1" in result.output
+        assert "4.0 KB" in result.output
+
+    def test_multiple_profiles(self, monkeypatch):
+        self._seed(monkeypatch)
+        runner = CliRunner()
+        result = runner.invoke(cli, ["status"])
+        assert result.exit_code == 0
+        assert "Profile: work" in result.output
+        assert "Profile: home" in result.output
+        assert "Files: 2" in result.output  # work has 2 files
+        assert "Files: 1" in result.output  # home has 1 file
+
+    def test_name_filter(self, monkeypatch):
+        self._seed(monkeypatch)
+        runner = CliRunner()
+        result = runner.invoke(cli, ["status", "--name", "home"])
+        assert result.exit_code == 0
+        assert "Profile: home" in result.output
+        assert "Profile: work" not in result.output
+        assert "Files: 1" in result.output
