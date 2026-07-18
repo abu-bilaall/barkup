@@ -147,9 +147,43 @@ def status(name):
 @cli.command()
 @click.option("--name", help="Verify specific profile")
 def verify(name):
-    """Verify backup integrity."""
-    # Implementation in Step 1.6
-    pass
+    from database import (
+        open_connection,
+        close_connection,
+        get_all_backups,
+        verify_backup,
+    )
+
+    conn = open_connection()
+    try:
+        entries = get_all_backups(conn, name)
+    finally:
+        close_connection(conn)
+
+    if not entries:
+        click.echo("No backups found.")
+        sys.exit(0)
+
+    # Aggregate results per profile
+    summary: dict[str, dict[str, int]] = {}
+    for e in entries:
+        profile = e["profile"]
+        status = verify_backup(e)
+        if profile not in summary:
+            summary[profile] = {"ok": 0, "missing": 0, "mismatch": 0}
+        summary[profile][status] += 1
+
+    for profile, counts in summary.items():
+        click.echo(f"Profile: {profile}")
+        click.echo(f"  OK: {counts['ok']}")
+        click.echo(f"  Missing: {counts['missing']}")
+        click.echo(f"  Mismatched: {counts['mismatch']}")
+
+    # Exit non-zero if any problem detected
+    any_issues = any(
+        v for prof in summary.values() for k, v in prof.items() if k != "ok" and v > 0
+    )
+    sys.exit(1 if any_issues else 0)
 
 
 @cli.command()

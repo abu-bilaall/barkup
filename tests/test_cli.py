@@ -5,7 +5,9 @@ Covers command registration and the shared profile-resolution helper.
 """
 
 from click.testing import CliRunner
-
+from pathlib import Path
+from hashing import calculate_file_hash
+from database import open_connection
 from cli import cli, resolve_profile_name
 
 
@@ -344,3 +346,62 @@ class TestStatusCommand:
         assert "Profile: home" in result.output
         assert "Profile: work" not in result.output
         assert "Files: 1" in result.output
+
+
+class TestVerifyCommand:
+    @staticmethod
+    def _seed(monkeypatch, tmp_path):
+        """Create two files, backup them, then return the in‑memory DB."""
+        import database
+        from database import open_connection, update_file_state
+
+        conn = open_connection(db_path=Path(":memory:"))
+        # file a (will stay ok)
+        a = tmp_path / "a.txt"
+        a.write_text("unchanged")
+        hash_a = calculate_file_hash(str(a))
+        update_file_state(conn, "p", str(a), "/bk/a.txt", hash_a, a.stat().st_size)
+        # file b (will be corrupted later)
+        b = tmp_path / "b.txt"
+        b.write_text("good")
+        hash_b = calculate_file_hash(str(b))
+        update_file_state(conn, "p", str(b), "/bk/b.txt", hash_b, b.stat().st_size)
+        # patch open_connection used by CLI
+        monkeypatch.setattr(database, "open_connection", lambda *a, **k: conn)
+        return conn, a, b
+
+    def test_empty_db_shows_message(self, monkeypatch):
+        import database
+
+        conn = open_connection(db_path=Path(":memory:"))
+        monkeypatch.setattr(database, "open_connection", lambda *a, **k: conn)
+        runner = CliRunner()
+        result = runner.invoke(cli, ["verify"])
+        assert result.exit_code == 0
+        assert "No backups found." in result.output
+
+    def test_all_ok_exits_zero(self, monkeypatch, tmp_path):
+        _, a, _ = self._seed(monkeypatch, tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(cli, ["verify"])
+        assert result.exit_code == 0
+        assert "OK: 2" in result.output
+        assert "Missing: 0" in result.output
+        assert "Mismatched: 0" in result.output
+
+    def test_mismatch_causes_nonzero_exit(self, monkeypatch, tmp_path):
+        conn, _, b = self._seed(monkeypatch, tmp_path)
+        # corrupt file b
+        b.write_text("corrupted")
+        runner = CliRunner()
+        result = runner.invoke(cli, ["verify"])
+        assert result.exit_code == 1
+        assert "Mismatched: 1" in result.output
+
+    def test_missing_file_reported(self, monkeypatch, tmp_path):
+        conn, a, b = self._seed(monkeypatch, tmp_path)
+        a.unlink()
+        runner = CliRunner()
+        result = runner.invoke(cli, ["verify"])
+        assert result.exit_code == 1
+        assert "Missing: 1" in result.output

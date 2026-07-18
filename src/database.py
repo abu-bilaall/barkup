@@ -192,3 +192,35 @@ def format_size(size_bytes: int) -> str:
     if size_bytes < 1024**3:
         return f"{size_bytes / (1024**2):.1f} MB"
     return f"{size_bytes / (1024**3):.1f} GB"
+
+
+def get_all_backups(
+    conn: sqlite3.Connection, profile: str | None = None
+) -> list[sqlite3.Row]:
+    """Return all backup rows, optionally filtered by profile.
+    Columns: profile, original_path, backup_path, hash.
+    """
+    cursor = conn.cursor()
+    if profile:
+        cursor.execute(
+            "SELECT profile, original_path, backup_path, hash FROM backups WHERE profile = ?",
+            (profile,),
+        )
+    else:
+        cursor.execute("SELECT profile, original_path, backup_path, hash FROM backups")
+    return cursor.fetchall()
+
+
+def verify_backup(entry: sqlite3.Row) -> str:
+    """Verify a single backup entry.
+    Returns "ok" if the original file exists and matches the stored hash,
+    "missing" if the file is absent, and "mismatch" if the hash differs.
+    """
+    original = Path(entry["original_path"])
+    if not original.is_file():
+        return "missing"
+    try:
+        current_hash = calculate_file_hash(str(original))
+    except Exception:
+        return "mismatch"
+    return "ok" if current_hash == entry["hash"] else "mismatch"
