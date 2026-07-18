@@ -113,6 +113,18 @@ barkup restore           # Restore files
    - Show the user the title, the filled body, and the `gh pr create --base <branch> ...`
      command, then wait for explicit approval before pushing or creating the PR.
 
+6. When wrapping up a feature branch before starting the next step:
+   - Return to the base branch (e.g. `dev`) and branch off it for the next step.
+   - Use this wrap-up workflow. The first three steps are the user's responsibility;
+     the agent must remind/urge the user to complete them and must not merge without approval:
+     1. User reviews the PR.
+     2. User reviews the changes.
+     3. User makes any last corrections.
+     4. After the above, the agent squash-merges the branch into the base branch as a single
+        commit whose message summarizes the branch deliverables and references the PR number
+        (e.g. `#7`). The agent must get explicit approval for both the squash-merge and the
+        commit message before executing.
+
 ### Testing Patterns
 - Write tests for all new functionality
 - Tests must be deterministic and isolated
