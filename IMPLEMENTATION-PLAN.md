@@ -13,7 +13,7 @@ This plan establishes the complete development roadmap for Barkup from its curre
 - ✅ Incremental backups (only changed files) - COMPLETE
 - ✅ 30 unit tests passing (barkup, config, database, hashing modules)
 - ✅ Tests for exclude_patterns, dry_run, config_resolvers - COMPLETE
-- ✅ CLI commands framework (init + run + list done; status/verify pending)
+- ✅ CLI commands framework (init + run + list + status done; verify pending)
 - ❌ Restore functionality - NOT STARTED
 - ❌ Compression (ZIP) - NOT STARTED
 - ❌ Google Drive integration - NOT STARTED
@@ -530,7 +530,7 @@ def list_cmd(name):
 
 ---
 
-#### Step 1.5: Implement `barkup status` Command ❌ NOT STARTED
+#### Step 1.5: Implement `barkup status` Command ✅ COMPLETE
 **Branch:** `feature/cli-status` (branched from `dev` after Step 1.4 merge)
 
 Shows backup statistics per profile.
