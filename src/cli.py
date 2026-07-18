@@ -99,8 +99,21 @@ def run(ctx, name, yes):
 @click.option("--name", help="Filter by profile name")
 def list_cmd(name):
     """List all backed up files."""
-    # Implementation in Step 1.4
-    pass
+    from database import open_connection, close_connection, list_backups
+
+    conn = open_connection()
+    try:
+        rows = list_backups(conn, name)
+    finally:
+        close_connection(conn)
+
+    if not rows:
+        click.echo("No backups found.")
+        return
+
+    for row in rows:
+        click.echo(f"{row['original_path']} -> {row['backup_path']}")
+        click.echo(f"  {row['size']} bytes, backed up {row['last_backup']}")
 
 
 @cli.command()

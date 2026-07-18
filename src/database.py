@@ -120,3 +120,25 @@ def close_connection(conn: sqlite3.Connection) -> None:
     """Commit any pending changes and close."""
     conn.commit()
     conn.close()
+
+
+def list_backups(
+    conn: sqlite3.Connection,
+    profile: str | None = None,
+) -> list[sqlite3.Row]:
+    """Return backed-up file records.
+
+    With ``profile=None``, returns every record across all profiles,
+    ordered by profile then original path. With a profile given, returns
+    only that profile's records, ordered by original path.
+    """
+    if profile:
+        rows = conn.execute(
+            "SELECT * FROM backups WHERE profile = ? ORDER BY original_path",
+            (profile,),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT * FROM backups ORDER BY profile, original_path"
+        ).fetchall()
+    return rows

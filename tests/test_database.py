@@ -142,3 +142,54 @@ class TestHasFileChanged:
 
         assert has_file_changed(conn, f, "default") is True
         close_connection(conn)
+
+
+class TestListBackups:
+    def test_returns_all_rows_when_profile_is_none(self):
+        from database import list_backups
+
+        conn = _memory_connection()
+        update_file_state(conn, "default", "/a.txt", "/b/a.txt", "h1", 10)
+        update_file_state(conn, "docs", "/b.txt", "/b/b.txt", "h2", 20)
+
+        rows = list_backups(conn, None)
+        assert len(rows) == 2
+        assert {row["profile"] for row in rows} == {"default", "docs"}
+        close_connection(conn)
+
+    def test_omitting_profile_lists_all_rows(self):
+        from database import list_backups
+
+        conn = _memory_connection()
+        update_file_state(conn, "p1", "/x.txt", "/b/x.txt", "hx", 1)
+        update_file_state(conn, "p2", "/y.txt", "/b/y.txt", "hy", 2)
+
+        rows = list_backups(conn)
+        assert len(rows) == 2
+        close_connection(conn)
+
+    def test_filters_by_profile(self):
+        from database import list_backups
+
+        conn = _memory_connection()
+        update_file_state(conn, "default", "/a.txt", "/b/a.txt", "h1", 10)
+        update_file_state(conn, "docs", "/b.txt", "/b/b.txt", "h2", 20)
+
+        rows = list_backups(conn, "docs")
+        assert len(rows) == 1
+        assert rows[0]["profile"] == "docs"
+        assert rows[0]["original_path"] == "/b.txt"
+        close_connection(conn)
+
+    def test_respects_profile_isolation(self):
+        from database import list_backups
+
+        conn = _memory_connection()
+        update_file_state(conn, "work", "/shared.txt", "/b/w.txt", "hw", 1)
+        update_file_state(conn, "home", "/shared.txt", "/b/h.txt", "hh", 2)
+
+        work_rows = list_backups(conn, "work")
+        home_rows = list_backups(conn, "home")
+        assert len(work_rows) == 1 and work_rows[0]["profile"] == "work"
+        assert len(home_rows) == 1 and home_rows[0]["profile"] == "home"
+        close_connection(conn)
