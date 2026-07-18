@@ -124,6 +124,15 @@ barkup restore           # Restore files
         commit whose message summarizes the branch deliverables and references the PR number
         (e.g. `#7`). The agent must get explicit approval for both the squash-merge and the
         commit message before executing.
+     5. After the squash-merge is pushed and the PR is closed, the agent deletes the
+        feature branch both locally (`git branch -d <branch>`) and remotely
+        (`git push origin --delete <branch>`). The agent must get explicit approval
+        before deleting the branch.
+   - Keep plan/roadmap-specific wording out of version control. References to internal
+     plan steps, phases, or roadmap coordinates (e.g. "Step 1.1", "Phase 0", "Step 0.3")
+     must not appear in commit messages, PRs, code comments, or docs, because future
+     contributors cannot verify them once the plan file is removed from the repo.
+     Describe work by what it delivers, not by where it sits in the plan.
 
 ### Testing Patterns
 - Write tests for all new functionality
