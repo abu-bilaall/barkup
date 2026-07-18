@@ -6,14 +6,14 @@ This plan establishes the complete development roadmap for Barkup from its curre
 
 **Current State:**
 - ✅ Config system (TOML parsing, validation, inheritance) - COMPLETE
-- ✅ Basic local backup with file copying - COMPLETE  
+- ✅ Basic local backup with file copying - COMPLETE
 - ✅ Exclude patterns with glob matching - COMPLETE
 - ✅ Dry-run preview mode - COMPLETE
 - ✅ State tracking (SQLite + SHA256 hashing) - COMPLETE
 - ✅ Incremental backups (only changed files) - COMPLETE
 - ✅ 30 unit tests passing (barkup, config, database, hashing modules)
-- ❌ Tests for exclude_patterns, dry_run, config_resolvers - MISSING
-- ❌ CLI commands framework - NOT STARTED
+- ✅ Tests for exclude_patterns, dry_run, config_resolvers - COMPLETE
+- ✅ CLI commands framework (init + run done; list/status/verify pending)
 - ❌ Restore functionality - NOT STARTED
 - ❌ Compression (ZIP) - NOT STARTED
 - ❌ Google Drive integration - NOT STARTED
@@ -27,12 +27,12 @@ Unit tests are the right primary focus for a CLI tool. Integration/E2E tests wil
 
 ### Phase 0: Foundation Improvements (Current State to Solid Base)
 
-#### Step 0.1: Add Missing Unit Tests for Implemented Features
+#### Step 0.1: Add Missing Unit Tests for Implemented Features ✅ COMPLETE
 **Branch:** `test/complete-unit-coverage`
 
 Before adding new features, ensure all existing code has tests. Missing coverage:
 - `exclude_patterns.py`: 3 functions untested
-- `dry_run.py`: 3 functions untested  
+- `dry_run.py`: 3 functions untested
 - `config_resolvers.py`: 2 resolver functions untested
 - `main.py`: Entry point error handling untested
 
@@ -74,7 +74,7 @@ Before adding new features, ensure all existing code has tests. Missing coverage
 
 ---
 
-#### Step 0.2: Fix Any Code Quality Issues Discovered by Tests
+#### Step 0.2: Fix Any Code Quality Issues Discovered by Tests ✅ COMPLETE
 **Branch:** Same branch as 0.1 (test/complete-unit-coverage)
 
 While writing tests, if bugs or edge cases are discovered:
@@ -92,7 +92,7 @@ Common patterns to watch:
 
 ---
 
-#### Step 0.3: Add Quality Gates - Pre-commit, Lint, CI
+#### Step 0.3: Add Quality Gates - Pre-commit, Lint, CI ✅ COMPLETE
 **Branch:** `feature/cli-framework` (added alongside Step 1.1)
 
 **Pre-commit hooks (the Python equivalent of husky + lint-staged):**
@@ -158,7 +158,7 @@ This helper function is created in Step 1.1 and reused in all subsequent command
 
 ---
 
-#### Step 1.1: Add Click Framework and Basic Command Structure
+#### Step 1.1: Add Click Framework and Basic Command Structure ✅ COMPLETE
 **Branch:** `feature/cli-framework`
 
 Install Click (industry-standard Python CLI framework, similar to Commander.js in Node):
@@ -181,7 +181,7 @@ from pathlib import Path
 
 def resolve_profile_name(cli_name: str | None, config) -> str:
     """Resolve which profile to use based on three-tier precedence.
-    
+
     1. CLI --name flag (highest priority)
     2. Config [general] profile_name field
     3. Hardcoded "default" fallback
@@ -280,7 +280,7 @@ class TestCliStructure:
         assert 'run' in result.output
         assert 'list' in result.output
         # ... etc
-    
+
     def test_custom_config_option(self):
         # Test --config flag is recognized
         pass
@@ -291,13 +291,13 @@ class TestResolveProfileName:
         # Call resolve_profile_name("cli_profile", config)
         # Assert returns "cli_profile"
         pass
-    
+
     def test_uses_config_profile_when_no_cli_name(self):
         # Mock config with profile_name="config_profile"
         # Call resolve_profile_name(None, config)
         # Assert returns "config_profile"
         pass
-    
+
     def test_defaults_to_default_when_nothing_specified(self):
         # Mock config without profile_name
         # Call resolve_profile_name(None, config)
@@ -315,7 +315,7 @@ class TestResolveProfileName:
 
 ---
 
-#### Step 1.2: Implement `barkup init` Command
+#### Step 1.2: Implement `barkup init` Command ✅ COMPLETE
 **Branch:** `feature/cli-init` (branched from `feature/cli-framework`)
 
 **Reuse:** `src/config.py` has `init_config()` function (line 84) - already implemented, just needs CLI wrapper.
@@ -326,14 +326,14 @@ class TestResolveProfileName:
 def init():
     """Create default config file at user config location."""
     from config import init_config, get_user_config_path
-    
+
     config_path = get_user_config_path()
-    
+
     if config_path.exists():
         click.echo(f"Config file already exists at {config_path}")
         if not click.confirm("Overwrite?"):
             return
-    
+
     init_config()
     click.echo(f"✓ Created config file at {config_path}")
     click.echo(f"\nEdit this file to configure your backup sources and destinations.")
@@ -348,7 +348,7 @@ class TestInitCommand:
         # Invoke init command
         # Assert config file created
         pass
-    
+
     def test_prompts_before_overwriting_existing_config(self):
         # Create existing config
         # Invoke with input='n'
@@ -360,7 +360,7 @@ class TestInitCommand:
 
 ---
 
-#### Step 1.3: Implement `barkup run` Command  
+#### Step 1.3: Implement `barkup run` Command ✅ COMPLETE
 **Branch:** `feature/cli-run` (branched from feature/cli-init after merge to dev)
 
 This command wraps the existing `run_barkup()` orchestrator but adds CLI-specific features.
@@ -385,29 +385,29 @@ def run(ctx, name, yes):
     from barkup import run_barkup
     from config import load_config
     import sys
-    
+
     config_path = ctx.obj.get('config_path')
-    
+
     try:
         config = load_config(config_path)
-        
+
         # Resolve profile name using three-tier fallback
         profile = resolve_profile_name(name, config)
         config.general.profile_name = profile
-        
+
         # Disable dry_run if --yes flag provided
         if yes:
             config.general.dry_run = False
-        
+
         click.echo(f"Running backup for profile: {profile}")
         stats = run_barkup(cli_path=config_path)
-        
+
         click.echo(f"\n✓ Backup completed successfully")
         click.echo(f"  New files: {stats['new_files']}")
         click.echo(f"  Modified files: {stats['modified_files']}")
         click.echo(f"  Skipped (unchanged): {stats['skipped_files']}")
         sys.exit(0)
-        
+
     except FileNotFoundError as e:
         click.echo(f"Error: {e}", err=True)
         sys.exit(1)
@@ -422,7 +422,7 @@ Current implementation doesn't return meaningful status. Change return type:
 def run_barkup(cli_path: Path | None = None) -> dict:
     """Run backup and return summary statistics."""
     # ... existing code ...
-    
+
     # After backup completes, before closing connection:
     return {
         'files_backed_up': len(new) + len(modified),
@@ -440,31 +440,31 @@ class TestRunCommand:
         # Invoke run command
         # Assert exit_code == 0
         pass
-    
+
     def test_yes_flag_skips_confirmation(self):
         # Config with dry_run=true
         # Invoke with --yes
         # Assert backup runs without prompt
         pass
-    
+
     def test_name_flag_overrides_profile(self):
         # Config with profile_name="default"
         # Invoke with --name="custom"
         # Assert uses custom profile
         pass
-    
+
     def test_uses_config_profile_when_no_name_flag(self):
         # Config with profile_name="myprofile"
         # Invoke without --name
         # Assert uses "myprofile"
         pass
-    
+
     def test_defaults_to_default_profile(self):
         # Config without profile_name field
         # Invoke without --name
         # Assert uses "default"
         pass
-    
+
     def test_keyboard_interrupt_exits_gracefully(self):
         # Mock KeyboardInterrupt during backup
         # Assert exit_code == 2
@@ -475,7 +475,7 @@ class TestRunCommand:
 
 ---
 
-#### Step 1.4: Implement `barkup list` Command
+#### Step 1.4: Implement `barkup list` Command ❌ NOT STARTED
 **Branch:** `feature/cli-list` (branched from `dev` after Step 1.3 merge)
 
 Wraps the DB layer to list backed-up files.
@@ -530,7 +530,7 @@ def list_cmd(name):
 
 ---
 
-#### Step 1.5: Implement `barkup status` Command
+#### Step 1.5: Implement `barkup status` Command ❌ NOT STARTED
 **Branch:** `feature/cli-status` (branched from `dev` after Step 1.4 merge)
 
 Shows backup statistics per profile.
@@ -598,7 +598,7 @@ def status(name):
 
 ---
 
-#### Step 1.6: Implement `barkup verify` Command
+#### Step 1.6: Implement `barkup verify` Command ❌ NOT STARTED
 **Branch:** `feature/cli-verify` (branched from `dev` after Step 1.5 merge)
 
 Validates backup integrity: confirms the backup copy is intact AND flags stale sources.
@@ -673,7 +673,7 @@ def verify(name):
 
 ### Phase 2: MVP Feature - Restore Functionality
 
-#### Step 2.1: Implement Single File Restore
+#### Step 2.1: Implement Single File Restore ❌ NOT STARTED
 **Branch:** `feature/restore-single-file`
 
 **Create:** `src/restore.py` (no existing equivalent found)
@@ -686,7 +686,7 @@ def find_backup_path(original_path: str, profile: str | None = None) -> str | No
     """Query database for backup location of a file."""
     conn = open_connection()
     cursor = conn.cursor()
-    
+
     if profile:
         cursor.execute(
             "SELECT backup_path FROM backups WHERE original_path = ? AND profile = ?",
@@ -698,51 +698,51 @@ def find_backup_path(original_path: str, profile: str | None = None) -> str | No
             "SELECT backup_path FROM backups WHERE original_path = ?",
             (str(original_path),)
         )
-    
+
     row = cursor.fetchone()
     conn.close()
-    
+
     return row[0] if row else None
 
 def restore_file(original_path: str, destination: str | None = None, profile: str | None = None) -> Path:
     """Restore a single file from backup.
-    
+
     Args:
         original_path: Original file path (used to query database)
         destination: Custom restore location (default: original location)
         profile: Profile name to filter by
-    
+
     Returns:
         Path where file was restored
-    
+
     Raises:
         FileNotFoundError: If file not found in backup database or backup file missing
     """
     backup_path_str = find_backup_path(original_path, profile)
-    
+
     if not backup_path_str:
         if profile:
             raise FileNotFoundError(f"File '{original_path}' not found in backup for profile '{profile}'")
         else:
             raise FileNotFoundError(f"File '{original_path}' not found in any backup")
-    
+
     backup_path = Path(backup_path_str)
-    
+
     if not backup_path.exists():
         raise FileNotFoundError(f"Backup file missing: {backup_path}")
-    
+
     # Determine restore location
     if destination:
         restore_path = Path(destination)
     else:
         restore_path = Path(original_path)
-    
+
     # Create parent directories if needed
     restore_path.parent.mkdir(parents=True, exist_ok=True)
-    
+
     # Copy file (preserving metadata)
     shutil.copy2(backup_path, restore_path)
-    
+
     return restore_path
 ```
 
@@ -756,22 +756,22 @@ def restore_file(original_path: str, destination: str | None = None, profile: st
 def restore(path, destination, restore_all, name):
     """Restore files from backup."""
     from restore import restore_file, restore_all_files
-    
+
     if restore_all:
         # Implementation in Step 2.2
         if not name:
             click.echo("Error: --name required with --all", err=True)
             raise SystemExit(1)
-        
+
         click.echo(f"Restoring all files from profile '{name}'...")
         # TODO: Step 2.2
         return
-    
+
     # Single file restore
     if not path:
         click.echo("Error: PATH argument required (or use --all)", err=True)
         raise SystemExit(1)
-    
+
     try:
         restored_path = restore_file(path, destination, name)
         click.echo(f"✓ Restored {path}")
@@ -789,10 +789,10 @@ class TestFindBackupPath:
         # Call find_backup_path()
         # Assert returns correct path
         pass
-    
+
     def test_returns_none_when_not_found(self):
         pass
-    
+
     def test_filters_by_profile(self):
         pass
 
@@ -802,19 +802,19 @@ class TestRestoreFile:
         # Call restore_file()
         # Assert file restored to original path
         pass
-    
+
     def test_restores_to_custom_location(self, tmp_path):
         # Provide custom destination
         # Assert file restored to custom path
         pass
-    
+
     def test_creates_parent_directories(self, tmp_path):
         pass
-    
+
     def test_raises_when_backup_not_found(self):
         with pytest.raises(FileNotFoundError):
             restore_file('/nonexistent/file.txt')
-    
+
     def test_raises_when_backup_file_missing(self):
         # Database entry exists but file deleted
         with pytest.raises(FileNotFoundError):
@@ -825,48 +825,48 @@ class TestRestoreFile:
 
 ---
 
-#### Step 2.2: Implement Full Backup Restore
+#### Step 2.2: Implement Full Backup Restore ❌ NOT STARTED
 **Branch:** Same as 2.1 (`feature/restore-single-file`)
 
 **Update:** `src/restore.py` - add `restore_all_files()`:
 ```python
 def restore_all_files(profile: str, destination: str | None = None) -> dict:
     """Restore all files from a backup profile.
-    
+
     Args:
         profile: Profile name to restore
         destination: Custom directory to restore into (preserves structure)
-    
+
     Returns:
         Dict with 'restored' count and 'failed' list
     """
     conn = open_connection()
     cursor = conn.cursor()
-    
+
     cursor.execute(
         "SELECT original_path, backup_path FROM backups WHERE profile = ?",
         (profile,)
     )
-    
+
     rows = cursor.fetchall()
     conn.close()
-    
+
     if not rows:
         raise ValueError(f"No backups found for profile '{profile}'")
-    
+
     results = {'restored': 0, 'failed': []}
-    
+
     for original_path, backup_path in rows:
         try:
             backup_file = Path(backup_path)
-            
+
             if not backup_file.exists():
                 results['failed'].append({
                     'path': original_path,
                     'error': 'Backup file missing'
                 })
                 continue
-            
+
             # Determine restore location
             if destination:
                 # Custom destination: preserve relative structure
@@ -876,17 +876,17 @@ def restore_all_files(profile: str, destination: str | None = None) -> dict:
                 restore_path = Path(destination) / original.name
             else:
                 restore_path = Path(original_path)
-            
+
             restore_path.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(backup_file, restore_path)
             results['restored'] += 1
-            
+
         except Exception as e:
             results['failed'].append({
                 'path': original_path,
                 'error': str(e)
             })
-    
+
     return results
 ```
 
@@ -897,11 +897,11 @@ def restore_all_files(profile: str, destination: str | None = None) -> dict:
         if not name:
             click.echo("Error: --name required with --all", err=True)
             raise SystemExit(1)
-        
+
         try:
             results = restore_all_files(name, destination)
 
-#### Step 3.5: Multi-Profile Management (Post-MVP)
+#### Step 3.5: Multi-Profile Management (Post-MVP) ❌ NOT STARTED
 **Branch:** `feature/multi-profile`
 
 Add commands to manage multiple backup profiles more easily.
@@ -914,9 +914,9 @@ def list_profiles() -> list[dict]:
     """List all backup profiles in the database."""
     conn = open_connection()
     cursor = conn.cursor()
-    
+
     cursor.execute("""
-        SELECT 
+        SELECT
             profile,
             COUNT(*) as file_count,
             SUM(size) as total_size,
@@ -925,10 +925,10 @@ def list_profiles() -> list[dict]:
         GROUP BY profile
         ORDER BY last_backup DESC
     """)
-    
+
     rows = cursor.fetchall()
     conn.close()
-    
+
     return [
         {
             'name': row[0],
@@ -948,16 +948,16 @@ def profiles():
     from profile_manager import list_profiles
     from list_backups import format_size
     from datetime import datetime
-    
+
     profiles_list = list_profiles()
-    
+
     if not profiles_list:
         click.echo("No backup profiles found")
         return
-    
+
     click.echo("Backup Profiles:")
     click.echo("=" * 70)
-    
+
     for profile in profiles_list:
         click.echo(f"\n{profile['name']}")
         click.echo(f"  Files: {profile['file_count']}")
@@ -975,7 +975,7 @@ class TestListProfiles:
         # Call list_profiles()
         # Assert returns all profiles with correct stats
         pass
-    
+
     def test_returns_empty_when_no_profiles(self):
         # Empty database
         # Assert returns empty list
@@ -986,22 +986,22 @@ class TestListProfiles:
 
 ---
 
-            
+
             click.echo(f"✓ Restored {results['restored']} files from profile '{name}'")
-            
+
             if destination:
                 click.echo(f"  → {destination}")
-            
+
             if results['failed']:
                 click.echo(f"\n⚠ Failed to restore {len(results['failed'])} files:")
                 for item in results['failed']:
                     click.echo(f"  - {item['path']}: {item['error']}")
                 raise SystemExit(1)
-                
+
         except ValueError as e:
             click.echo(f"Error: {e}", err=True)
             raise SystemExit(1)
-        
+
         return
 ```
 
@@ -1013,17 +1013,17 @@ class TestRestoreAllFiles:
         # Call restore_all_files()
         # Assert all files restored
         pass
-    
+
     def test_restores_to_custom_directory(self, tmp_path):
         # Provide destination
         # Assert files restored to custom location with structure preserved
         pass
-    
+
     def test_continues_on_individual_file_errors(self, tmp_path):
         # Some backup files missing
         # Assert continues and reports failures
         pass
-    
+
     def test_raises_when_profile_not_found(self):
         with pytest.raises(ValueError):
             restore_all_files('nonexistent')
@@ -1035,7 +1035,7 @@ class TestRestoreAllFiles:
 
 ### Phase 3: Nice-to-Have Features
 
-#### Step 3.1: Make Barkup Installable (PyPI-ready)
+#### Step 3.1: Make Barkup Installable (PyPI-ready) ❌ NOT STARTED
 **Branch:** `feature/packaging`
 
 **Update:** `pyproject.toml` - add build system and metadata:
@@ -1088,7 +1088,7 @@ uv pip uninstall barkup
 
 ---
 
-#### Step 3.1b: CD - Automated PyPI Publish (Release Workflow)
+#### Step 3.1b: CD - Automated PyPI Publish (Release Workflow) ❌ NOT STARTED
 **Branch:** `feature/packaging` (same as 3.1)
 
 Build and publish is **Continuous Deployment (CD)**, distinct from the CI
@@ -1124,7 +1124,7 @@ PyPI; CI (Step 0.3) remains the gate for PRs into `dev`/`main`.
 
 ---
 
-#### Step 3.2: Write Comprehensive README
+#### Step 3.2: Write Comprehensive README ❌ NOT STARTED
 **Branch:** Same as 3.1 (`feature/packaging`)
 
 **Update:** `README.md` - populate with full documentation.
@@ -1141,7 +1141,7 @@ Structure (from spec.md):
    git clone https://github.com/[username]/barkup
    cd barkup
    uv pip install -e .
-   
+
    # Future: From PyPI
    pip install barkup
    ```
@@ -1150,13 +1150,13 @@ Structure (from spec.md):
    ```bash
    # Create config file
    barkup init
-   
+
    # Edit config
    nano ~/.config/barkup/config.toml
-   
+
    # Run first backup
    barkup run
-   
+
    # List backed up files
    barkup list
    ```
@@ -1189,7 +1189,7 @@ Structure (from spec.md):
 
 ---
 
-#### Step 3.3: Implement Compression (ZIP)
+#### Step 3.3: Implement Compression (ZIP) ❌ NOT STARTED
 **Branch:** `feature/compression`
 
 This is a post-MVP enhancement. Only implement if time allows after core MVP is solid.
@@ -1219,7 +1219,7 @@ def compress_files(files: list[Path], output_path: Path) -> Path:
     with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
         for file in files:
             zipf.write(file, arcname=file.name)
-    
+
     return output_path
 ```
 
@@ -1236,7 +1236,7 @@ def compress_files(files: list[Path], output_path: Path) -> Path:
 
 ---
 
-#### Step 3.4: Google Drive Integration (Future)
+#### Step 3.4: Google Drive Integration (Future) ❌ NOT STARTED
 **Branch:** `feature/google-drive`
 
 This is a significant enhancement requiring OAuth, API integration, and error handling. Out of scope for initial MVP.
