@@ -120,10 +120,16 @@ barkup restore           # Restore files
      1. User reviews the PR.
      2. User reviews the changes.
      3. User makes any last corrections.
-     4. After the above, the agent squash-merges the branch into the base branch as a single
-        commit whose message summarizes the branch deliverables and references the PR number
-        (e.g. `#7`). The agent must get explicit approval for both the squash-merge and the
-        commit message before executing.
+    4. After the above, the agent squash-merges the branch into the base branch as a single
+       commit whose message summarizes the branch deliverables and references the PR number
+       (e.g. `#7`). The agent must get explicit approval for both the squash-merge and the
+       commit message before executing.
+       - **PR-number reference:** passing an explicit `--subject`/`-t` to
+         `gh pr merge --squash` stops GitHub from auto-appending `(#PR)` — that
+         only happens when you let it use the default PR-title-based message.
+         Always include `(#<pr-number>)` in the subject (or reuse the default
+         title) so the squash commit references the PR; otherwise the reference
+         is silently dropped.
      5. After the squash-merge is pushed and the PR is closed, the agent deletes the
         feature branch both locally (`git branch -d <branch>`) and remotely
         (`git push origin --delete <branch>`). The agent must get explicit approval

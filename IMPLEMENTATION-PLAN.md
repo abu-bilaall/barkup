@@ -112,7 +112,16 @@ black and conflicts with it.
 - Trigger: `pull_request` on `branches: [dev, main]` (runs before merge)
 - Job `lint`: `uv run ruff check .` + `uv run black --check .`
 - Job `test`: `uv run pytest -v`
-- Type-checking (pyright/basedpyright) is deliberately deferred - see Step 3.1b.
+- Job `type`: `uv run pyright` — static type checking via the existing
+  `[tool.pyright]` config (`extraPaths = ["src"]`). Add `pyright` to the dev
+  dependency group (`uv add --dev pyright`) and a `type` job to `ci.yml`.
+  **No build system is required**: pyright reads the source directly, so this
+  needs no PyPI packaging (Step 3.1). The earlier "deliberately deferred -
+  see Step 3.1b" note was based on a mistaken belief that pyright needed a
+  build system; it does not.
+  **Wiring (ci.yml job + dev dep + fixing any type errors) is deferred to an
+  isolated branch, done much later — after the very last item currently in
+  this plan — so it never blocks in-progress feature work.**
 
 **README:** Added a CI status badge (placeholder `[username]`) pointing at
 `?branch=dev`, since active development happens on `dev`.
