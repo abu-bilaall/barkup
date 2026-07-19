@@ -153,7 +153,7 @@ def restore_all_files(profile: str, destination: str | None = None) -> dict:
             restore_path.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(backup_file, restore_path)
             results["restored"] += 1
-        except Exception as e:  # noqa: BLE001 - report and continue
+        except OSError as e:
             results["failed"].append({"path": original_path, "error": str(e)})
 
     return results

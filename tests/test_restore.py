@@ -182,3 +182,18 @@ class TestRestoreAllFiles:
 
         with pytest.raises(ValueError):
             restore_all_files("nope")
+
+    def test_records_oserror_as_failure(self, monkeypatch, tmp_path):
+        conn, db_path = _shared_db(tmp_path)
+        a, b, _, _ = _seed(conn, tmp_path)
+        _patch_open(monkeypatch, db_path)
+
+        # Point --to at an existing *file* so the restore target's parent is a
+        # file; mkdir(parents=True, exist_ok=True) then raises FileExistsError
+        # (an OSError), exercising the narrowed except branch.
+        dest_root = tmp_path / "out"
+        dest_root.write_text("i am a file")
+        results = restore_all_files("p", destination=str(dest_root))
+
+        assert results["restored"] == 0
+        assert len(results["failed"]) == 2
