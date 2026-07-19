@@ -13,8 +13,8 @@ This plan establishes the complete development roadmap for Barkup from its curre
 - ✅ Incremental backups (only changed files) - COMPLETE
 - ✅ 30 unit tests passing (barkup, config, database, hashing modules)
 - ✅ Tests for exclude_patterns, dry_run, config_resolvers - COMPLETE
-- ✅ CLI commands framework (init + run + list + status + verify done)
-- ❌ Restore functionality - NOT STARTED
+- ✅ CLI commands framework (init + run + list + status + verify + restore done)
+- ✅ Restore functionality - COMPLETE
 - ❌ Compression (ZIP) - NOT STARTED
 - ❌ Google Drive integration - NOT STARTED
 - ❌ Installable package - NOT STARTED
@@ -672,7 +672,7 @@ def verify(name):
 
 ### Phase 2: MVP Feature - Restore Functionality
 
-#### Step 2.1: Implement Single File Restore ❌ NOT STARTED
+#### Step 2.1: Implement Single File Restore ✅ COMPLETE
 **Branch:** `feature/file-restore`
 
 **Create:** `src/restore.py` (no existing equivalent found)
@@ -824,7 +824,7 @@ class TestRestoreFile:
 
 ---
 
-#### Step 2.2: Implement Full Backup Restore ❌ NOT STARTED
+#### Step 2.2: Implement Full Backup Restore ✅ COMPLETE
 **Branch:** Same as 2.1 (`feature/file-restore`)
 
 **Update:** `src/restore.py` - add `restore_all_files()`:

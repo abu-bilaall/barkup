@@ -405,3 +405,102 @@ class TestVerifyCommand:
         result = runner.invoke(cli, ["verify"])
         assert result.exit_code == 1
         assert "Missing: 1" in result.output
+
+
+class TestRestoreCommand:
+    @staticmethod
+    def _seed(monkeypatch, tmp_path):
+        """Create real backup files + DB rows; return handles.
+
+        Uses a file-backed DB and routes ``database.open_connection`` to a
+        fresh connection on that file each call, because the restore command
+        opens and closes its own connection per invocation.
+        """
+        import database
+        from database import open_connection, update_file_state
+
+        db_path = tmp_path / "state.db"
+        conn = open_connection(db_path=db_path)
+        bk = tmp_path / "bk"
+        bk.mkdir()
+        a = tmp_path / "a.txt"
+        a.write_text("alpha")
+        ba = bk / "a.txt"
+        ba.write_text("alpha")
+        b = tmp_path / "b.txt"
+        b.write_text("beta")
+        bb = bk / "b.txt"
+        bb.write_text("beta")
+        update_file_state(conn, "p", str(a), str(ba), "ha", a.stat().st_size)
+        update_file_state(conn, "p", str(b), str(bb), "hb", b.stat().st_size)
+        monkeypatch.setattr(
+            database,
+            "open_connection",
+            lambda *a, **k: open_connection(db_path=db_path),
+        )
+        return conn, a, b
+
+    def test_missing_path_argument(self, monkeypatch, tmp_path):
+        self._seed(monkeypatch, tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(cli, ["restore"])
+        assert result.exit_code == 1
+        assert "PATH argument required" in result.output
+
+    def test_all_requires_name(self, monkeypatch, tmp_path):
+        self._seed(monkeypatch, tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(cli, ["restore", "--all"])
+        assert result.exit_code == 1
+        assert "--name required" in result.output
+
+    def test_restores_single_file(self, monkeypatch, tmp_path):
+        _, a, _ = self._seed(monkeypatch, tmp_path)
+        dest = tmp_path / "restored" / "a.txt"
+        runner = CliRunner()
+        result = runner.invoke(cli, ["restore", str(a), "--to", str(dest)])
+        assert result.exit_code == 0
+        assert dest.is_file()
+        assert dest.read_text() == "alpha"
+        assert "Restored" in result.output
+
+    def test_unknown_file_errors(self, monkeypatch, tmp_path):
+        self._seed(monkeypatch, tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(cli, ["restore", "/no/such/file.txt"])
+        assert result.exit_code == 1
+        assert "not found" in result.output
+
+    def test_restores_all_to_destination(self, monkeypatch, tmp_path):
+        _, a, b = self._seed(monkeypatch, tmp_path)
+        dest_root = tmp_path / "out"
+        runner = CliRunner()
+        result = runner.invoke(
+            cli, ["restore", "--all", "--name", "p", "--to", str(dest_root)]
+        )
+        assert result.exit_code == 0
+        rel_a = Path(str(a)).relative_to(Path(str(a)).anchor)
+        rel_b = Path(str(b)).relative_to(Path(str(b)).anchor)
+        assert (dest_root / rel_a).is_file()
+        assert (dest_root / rel_b).is_file()
+        assert "Restored 2 files" in result.output
+
+    def test_all_reports_missing_backup(self, monkeypatch, tmp_path):
+        import database
+        from database import open_connection, update_file_state
+
+        conn = open_connection(db_path=Path(":memory:"))
+        missing_bk = tmp_path / "bk" / "gone.txt"
+        update_file_state(conn, "p", str(tmp_path / "src.txt"), str(missing_bk), "h", 5)
+        monkeypatch.setattr(database, "open_connection", lambda *a, **k: conn)
+        runner = CliRunner()
+        result = runner.invoke(cli, ["restore", "--all", "--name", "p"])
+        assert result.exit_code == 1
+        assert "Failed to restore" in result.output
+
+    def test_all_unknown_profile(self, monkeypatch, tmp_path):
+        self._seed(monkeypatch, tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(cli, ["restore", "--all", "--name", "nope"])
+        assert result.exit_code == 1
+        assert "No backups found" in result.output
