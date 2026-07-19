@@ -2,8 +2,8 @@ import sys
 
 from pydantic import ValidationError
 
-from barkup import run_barkup
-from cli import cli
+from barkup.barkup import run_barkup
+from barkup.cli import cli
 
 
 def main() -> None:

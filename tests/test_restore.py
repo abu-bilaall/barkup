@@ -10,9 +10,9 @@ return a *fresh* connection to that same file each time, mirroring production.
 import pytest
 from pathlib import Path
 
-import database
-from database import open_connection, update_file_state
-from restore import (
+from barkup import database
+from barkup.database import open_connection, update_file_state
+from barkup.restore import (
     find_backup_path,
     restore_all_files,
     restore_file,

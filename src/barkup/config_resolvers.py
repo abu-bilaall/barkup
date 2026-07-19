@@ -18,7 +18,7 @@ Resolvers:
 """
 
 from dataclasses import dataclass
-from config_models import GeneralConfig, LocalConfig, CloudProvider
+from barkup.config_models import GeneralConfig, LocalConfig, CloudProvider
 
 
 @dataclass

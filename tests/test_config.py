@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from config import (
+from barkup.config import (
     get_user_config_path,
     deep_merge,
 )

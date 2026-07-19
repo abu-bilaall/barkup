@@ -10,8 +10,8 @@ from pathlib import Path
 
 import click
 
-from barkup import run_barkup
-from config import get_user_config_path, init_config, load_config
+from barkup.barkup import run_barkup
+from barkup.config import get_user_config_path, init_config, load_config
 
 
 def resolve_profile_name(cli_name: str | None, config) -> str:
@@ -99,7 +99,7 @@ def run(ctx, name, yes):
 @click.option("--name", help="Filter by profile name")
 def list_cmd(name):
     """List all backed up files."""
-    from database import open_connection, close_connection, list_backups
+    from barkup.database import open_connection, close_connection, list_backups
 
     conn = open_connection()
     try:
@@ -120,7 +120,7 @@ def list_cmd(name):
 @click.option("--name", help="Show stats for specific profile")
 def status(name):
     """Show backup statistics."""
-    from database import (
+    from barkup.database import (
         open_connection,
         close_connection,
         get_backup_stats,
@@ -147,7 +147,7 @@ def status(name):
 @cli.command()
 @click.option("--name", help="Verify specific profile")
 def verify(name):
-    from database import (
+    from barkup.database import (
         open_connection,
         close_connection,
         get_all_backups,
@@ -193,7 +193,7 @@ def verify(name):
 @click.option("--name", help="Profile name")
 def restore(path, destination, restore_all, name):
     """Restore files from backup."""
-    from restore import restore_all_files, restore_file
+    from barkup.restore import restore_all_files, restore_file
 
     if restore_all:
         if not name:

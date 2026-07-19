@@ -1,4 +1,4 @@
-from barkup import barkup_file
+from barkup.barkup import barkup_file
 
 
 class TestBarkupFileFromFile:

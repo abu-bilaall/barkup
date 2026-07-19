@@ -17,7 +17,7 @@ This plan establishes the complete development roadmap for Barkup from its curre
 - ✅ Restore functionality - COMPLETE
 - ❌ Compression (ZIP) - NOT STARTED
 - ❌ Google Drive integration - NOT STARTED
-- ❌ Installable package - NOT STARTED
+- ✅ Installable package - COMPLETE
 - ❌ Documentation (README) - EMPTY
 
 **Testing Philosophy Agreement:**
@@ -956,7 +956,7 @@ class TestRestoreAllFiles:
 
 ### Phase 3: Nice-to-Have Features
 
-#### Step 3.1: Make Barkup Installable (PyPI-ready) ❌ NOT STARTED
+#### Step 3.1: Make Barkup Installable (PyPI-ready) ✅ COMPLETE
 **Branch:** `feature/packaging`
 
 **Update:** `pyproject.toml` - add build system and metadata:
@@ -981,11 +981,14 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/[username]/barkup"
-Issues = "https://github.com/[username]/barkup/issues"
+Homepage = "https://github.com/abu-bilaall/barkup"
+Issues = "https://github.com/abu-bilaall/barkup/issues"
+
+[tool.hatch.build]
+sources = ["src"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src"]
+packages = ["barkup"]
 ```
 
 **Why hatchling:** Modern, minimal build backend. Alternative to setuptools. Zero configuration for simple packages.

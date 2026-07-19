@@ -1,6 +1,6 @@
 from collections import defaultdict
 
-from exclude_patterns import FileToBackup
+from barkup.exclude_patterns import FileToBackup
 
 
 def dry_run_output(files: list[FileToBackup]) -> None:

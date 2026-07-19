@@ -1,12 +1,12 @@
 import pytest
 from pathlib import Path
 
-from exclude_patterns import (
+from barkup.exclude_patterns import (
     scan_sources,
     should_exclude,
     resolve_excluded,
 )
-from config_resolvers import ResolvedLocalConfig
+from barkup.config_resolvers import ResolvedLocalConfig
 
 
 class TestScanSources:

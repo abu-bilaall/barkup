@@ -1,7 +1,7 @@
 import sqlite3
 from pathlib import Path
 
-from database import (
+from barkup.database import (
     open_connection,
     initialize_database,
     get_file_state,
@@ -112,7 +112,7 @@ class TestHasFileChanged:
         f.write_text("content")
 
         # simulate a previous backup
-        from hashing import calculate_file_hash
+        from barkup.hashing import calculate_file_hash
 
         update_file_state(
             conn,
@@ -131,7 +131,7 @@ class TestHasFileChanged:
         f = tmp_path / "changing.txt"
         f.write_text("original")
 
-        from hashing import calculate_file_hash
+        from barkup.hashing import calculate_file_hash
 
         update_file_state(
             conn,
@@ -151,7 +151,7 @@ class TestHasFileChanged:
 
 class TestListBackups:
     def test_returns_all_rows_when_profile_is_none(self):
-        from database import list_backups
+        from barkup.database import list_backups
 
         conn = _memory_connection()
         update_file_state(conn, "default", "/a.txt", "/b/a.txt", "h1", 10)
@@ -163,7 +163,7 @@ class TestListBackups:
         close_connection(conn)
 
     def test_omitting_profile_lists_all_rows(self):
-        from database import list_backups
+        from barkup.database import list_backups
 
         conn = _memory_connection()
         update_file_state(conn, "p1", "/x.txt", "/b/x.txt", "hx", 1)
@@ -174,7 +174,7 @@ class TestListBackups:
         close_connection(conn)
 
     def test_filters_by_profile(self):
-        from database import list_backups
+        from barkup.database import list_backups
 
         conn = _memory_connection()
         update_file_state(conn, "default", "/a.txt", "/b/a.txt", "h1", 10)
@@ -187,7 +187,7 @@ class TestListBackups:
         close_connection(conn)
 
     def test_respects_profile_isolation(self):
-        from database import list_backups
+        from barkup.database import list_backups
 
         conn = _memory_connection()
         update_file_state(conn, "work", "/shared.txt", "/b/w.txt", "hw", 1)
@@ -272,7 +272,7 @@ class TestGetAllBackups:
     def test_empty_db_returns_empty_list(self, monkeypatch):
         conn = _memory_connection()
         # patch open_connection to use in‑memory DB
-        import database
+        from barkup import database
 
         monkeypatch.setattr(database, "open_connection", lambda *a, **k: conn)
         rows = get_all_backups(conn)
@@ -293,7 +293,7 @@ class TestGetAllBackups:
         update_file_state(
             conn, "profile2", str(f2), "/bk/b.txt", hash2, f2.stat().st_size
         )
-        import database
+        from barkup import database
 
         monkeypatch.setattr(database, "open_connection", lambda *a, **k: conn)
         rows_all = get_all_backups(conn)

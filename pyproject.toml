@@ -8,6 +8,21 @@ dependencies = [
     "click>=8.4.2",
     "pydantic>=2.12.5",
 ]
+keywords = ["backup", "cli", "incremental", "google-drive"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: System :: Archiving :: Backup",
+]
+
+[project.urls]
+Homepage = "https://github.com/abu-bilaall/barkup"
+Issues = "https://github.com/abu-bilaall/barkup/issues"
 
 [dependency-groups]
 dev = [
@@ -17,8 +32,18 @@ dev = [
     "ruff>=0.15.22",
 ]
 
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build]
+sources = ["src"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["barkup"]
+
 [project.scripts]
-barkup = "cli:cli"
+barkup = "barkup.cli:cli"
 
 [tool.pytest.ini_options]
 pythonpath = "src"

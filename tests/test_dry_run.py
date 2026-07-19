@@ -1,8 +1,8 @@
 from pathlib import Path
 
 
-from dry_run import dry_run_output, dry_local_run, dry_cloud_run
-from exclude_patterns import FileToBackup
+from barkup.dry_run import dry_run_output, dry_local_run, dry_cloud_run
+from barkup.exclude_patterns import FileToBackup
 
 
 def _file(path: Path, source: Path, is_dir: bool) -> FileToBackup:

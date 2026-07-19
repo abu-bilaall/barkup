@@ -7,7 +7,7 @@ import main
 def _raise_validation_error():
     # Produce a genuine Pydantic ValidationError as config loading would.
     try:
-        from config_models import GeneralConfig
+        from barkup.config_models import GeneralConfig
 
         # `sources` is mandatory on GeneralConfig, so this fails validation.
         GeneralConfig(profile_name="broken", sources=[])

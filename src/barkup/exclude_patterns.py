@@ -20,7 +20,7 @@ from pathlib import Path
 from fnmatch import fnmatch
 from dataclasses import dataclass
 
-from config_resolvers import ResolvedLocalConfig, ResolvedCloudConfig
+from barkup.config_resolvers import ResolvedLocalConfig, ResolvedCloudConfig
 
 
 @dataclass
