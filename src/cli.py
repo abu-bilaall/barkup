@@ -193,8 +193,39 @@ def verify(name):
 @click.option("--name", help="Profile name")
 def restore(path, destination, restore_all, name):
     """Restore files from backup."""
-    # Implementation in Phase 2
-    pass
+    from restore import restore_all_files, restore_file
+
+    if restore_all:
+        if not name:
+            click.echo("Error: --name required with --all", err=True)
+            sys.exit(1)
+        try:
+            results = restore_all_files(name, destination)
+        except ValueError as e:
+            click.echo(f"Error: {e}", err=True)
+            sys.exit(1)
+
+        click.echo(f"✓ Restored {results['restored']} files from profile '{name}'")
+        if destination:
+            click.echo(f"  → {destination}")
+        if results["failed"]:
+            click.echo(f"\n⚠ Failed to restore {len(results['failed'])} files:")
+            for item in results["failed"]:
+                click.echo(f"  - {item['path']}: {item['error']}")
+            sys.exit(1)
+        sys.exit(0)
+
+    if not path:
+        click.echo("Error: PATH argument required (or use --all)", err=True)
+        sys.exit(1)
+
+    try:
+        restored_path = restore_file(path, destination, name)
+        click.echo(f"✓ Restored {path}")
+        click.echo(f"  → {restored_path}")
+    except FileNotFoundError as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
