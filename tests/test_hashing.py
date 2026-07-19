@@ -1,5 +1,5 @@
 import hashlib
-from hashing import calculate_file_hash, CHUNK_SIZE
+from barkup.hashing import calculate_file_hash, CHUNK_SIZE
 
 
 class TestCalculateFileHash:

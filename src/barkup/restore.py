@@ -11,7 +11,7 @@ All DB access goes through ``database.open_connection`` / ``close_connection``
 import shutil
 from pathlib import Path
 
-import database
+from barkup import database
 
 
 def _restore_target(original_path: str, destination: str | None) -> Path:

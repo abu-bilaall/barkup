@@ -6,8 +6,8 @@ supports layered config: system -> user -> cwd -> cli
 import os
 from pathlib import Path
 import tomllib
-from config_models import BarkupConfig
-from config_resolvers import ResolvedLocalConfig
+from barkup.config_models import BarkupConfig
+from barkup.config_resolvers import ResolvedLocalConfig
 from dataclasses import fields
 import sys
 

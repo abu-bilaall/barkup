@@ -2,21 +2,21 @@ from pathlib import Path
 import shutil
 import sqlite3
 
-from config import load_config
-from exclude_patterns import resolve_excluded, FileToBackup
-from dry_run import dry_local_run, dry_cloud_run
-from config_resolvers import (
+from barkup.config import load_config
+from barkup.exclude_patterns import resolve_excluded, FileToBackup
+from barkup.dry_run import dry_local_run, dry_cloud_run
+from barkup.config_resolvers import (
     resolve_local_config,
     resolve_cloud_config,
     ResolvedGoogleDriveCloudConfig,
 )
-from database import (
+from barkup.database import (
     open_connection,
     get_file_state,
     update_file_state,
     close_connection,
 )
-from hashing import calculate_file_hash
+from barkup.hashing import calculate_file_hash
 
 
 def barkup_file(

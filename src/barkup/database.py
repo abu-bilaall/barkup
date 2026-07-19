@@ -18,8 +18,8 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
-from config import get_user_config_path
-from hashing import calculate_file_hash
+from barkup.config import get_user_config_path
+from barkup.hashing import calculate_file_hash
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS backups (

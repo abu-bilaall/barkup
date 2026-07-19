@@ -1,8 +1,8 @@
 import pytest
 from typing import Any
 
-from config_models import GeneralConfig, LocalConfig, CloudProvider
-from config_resolvers import (
+from barkup.config_models import GeneralConfig, LocalConfig, CloudProvider
+from barkup.config_resolvers import (
     resolve_local_config,
     resolve_cloud_config,
     ResolvedLocalConfig,
