@@ -673,7 +673,7 @@ def verify(name):
 ### Phase 2: MVP Feature - Restore Functionality
 
 #### Step 2.1: Implement Single File Restore ❌ NOT STARTED
-**Branch:** `feature/restore-single-file`
+**Branch:** `feature/file-restore`
 
 **Create:** `src/restore.py` (no existing equivalent found)
 ```python
@@ -825,7 +825,7 @@ class TestRestoreFile:
 ---
 
 #### Step 2.2: Implement Full Backup Restore ❌ NOT STARTED
-**Branch:** Same as 2.1 (`feature/restore-single-file`)
+**Branch:** Same as 2.1 (`feature/file-restore`)
 
 **Update:** `src/restore.py` - add `restore_all_files()`:
 ```python
@@ -899,93 +899,6 @@ def restore_all_files(profile: str, destination: str | None = None) -> dict:
 
         try:
             results = restore_all_files(name, destination)
-
-#### Step 3.5: Multi-Profile Management (Post-MVP) ❌ NOT STARTED
-**Branch:** `feature/multi-profile`
-
-Add commands to manage multiple backup profiles more easily.
-
-**Create:** `src/profile_manager.py` (no existing equivalent found)
-```python
-from database import open_connection
-
-def list_profiles() -> list[dict]:
-    """List all backup profiles in the database."""
-    conn = open_connection()
-    cursor = conn.cursor()
-
-    cursor.execute("""
-        SELECT
-            profile,
-            COUNT(*) as file_count,
-            SUM(size) as total_size,
-            MAX(last_backup) as last_backup
-        FROM backups
-        GROUP BY profile
-        ORDER BY last_backup DESC
-    """)
-
-    rows = cursor.fetchall()
-    conn.close()
-
-    return [
-        {
-            'name': row[0],
-            'file_count': row[1],
-            'total_size': row[2],
-            'last_backup': row[3]
-        }
-        for row in rows
-    ]
-```
-
-**Update:** `src/cli.py` - add `profiles` command:
-```python
-@cli.command()
-def profiles():
-    """List all backup profiles."""
-    from profile_manager import list_profiles
-    from list_backups import format_size
-    from datetime import datetime
-
-    profiles_list = list_profiles()
-
-    if not profiles_list:
-        click.echo("No backup profiles found")
-        return
-
-    click.echo("Backup Profiles:")
-    click.echo("=" * 70)
-
-    for profile in profiles_list:
-        click.echo(f"\n{profile['name']}")
-        click.echo(f"  Files: {profile['file_count']}")
-        click.echo(f"  Size: {format_size(profile['total_size'])}")
-        if profile['last_backup']:
-            timestamp = datetime.fromisoformat(profile['last_backup'])
-            click.echo(f"  Last backup: {timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
-```
-
-**Testing:** Add to `tests/test_profile_manager.py`:
-```python
-class TestListProfiles:
-    def test_lists_all_profiles(self):
-        # Insert data for multiple profiles
-        # Call list_profiles()
-        # Assert returns all profiles with correct stats
-        pass
-
-    def test_returns_empty_when_no_profiles(self):
-        # Empty database
-        # Assert returns empty list
-        pass
-```
-
-**Acceptance:** `uv run barkup profiles` lists all backup profiles with statistics, helps users manage multiple profiles easily.
-
----
-
-
             click.echo(f"✓ Restored {results['restored']} files from profile '{name}'")
 
             if destination:
@@ -1254,6 +1167,91 @@ uv add google-api-python-client google-auth-httplib2 google-auth-oauthlib
 - Network error handling and retries
 
 **Defer until:** MVP complete and working reliably.
+
+---
+
+#### Step 3.5: Multi-Profile Management (Post-MVP) ❌ NOT STARTED
+**Branch:** `feature/multi-profile`
+
+Add commands to manage multiple backup profiles more easily.
+
+**Create:** `src/profile_manager.py` (no existing equivalent found)
+```python
+from database import open_connection
+
+def list_profiles() -> list[dict]:
+    """List all backup profiles in the database."""
+    conn = open_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT
+            profile,
+            COUNT(*) as file_count,
+            SUM(size) as total_size,
+            MAX(last_backup) as last_backup
+        FROM backups
+        GROUP BY profile
+        ORDER BY last_backup DESC
+    """)
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    return [
+        {
+            'name': row[0],
+            'file_count': row[1],
+            'total_size': row[2],
+            'last_backup': row[3]
+        }
+        for row in rows
+    ]
+```
+
+**Update:** `src/cli.py` - add `profiles` command:
+```python
+@cli.command()
+def profiles():
+    """List all backup profiles."""
+    from profile_manager import list_profiles
+    from list_backups import format_size
+    from datetime import datetime
+
+    profiles_list = list_profiles()
+
+    if not profiles_list:
+        click.echo("No backup profiles found")
+        return
+
+    click.echo("Backup Profiles:")
+    click.echo("=" * 70)
+
+    for profile in profiles_list:
+        click.echo(f"\n{profile['name']}")
+        click.echo(f"  Files: {profile['file_count']}")
+        click.echo(f"  Size: {format_size(profile['total_size'])}")
+        if profile['last_backup']:
+            timestamp = datetime.fromisoformat(profile['last_backup'])
+            click.echo(f"  Last backup: {timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
+```
+
+**Testing:** Add to `tests/test_profile_manager.py`:
+```python
+class TestListProfiles:
+    def test_lists_all_profiles(self):
+        # Insert data for multiple profiles
+        # Call list_profiles()
+        # Assert returns all profiles with correct stats
+        pass
+
+    def test_returns_empty_when_no_profiles(self):
+        # Empty database
+        # Assert returns empty list
+        pass
+```
+
+**Acceptance:** `uv run barkup profiles` lists all backup profiles with statistics, helps users manage multiple profiles easily.
 
 ---
 
