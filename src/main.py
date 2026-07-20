@@ -18,6 +18,9 @@ def main() -> None:
             print(f"  • {field}: {message}")
 
         sys.exit(1)
+    except ValueError as e:
+        print(f"Configuration error: {e}")
+        sys.exit(1)
 
     # except Exception as e:
     #     print(f"Unexpected error: {e}")

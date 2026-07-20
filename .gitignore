@@ -20,3 +20,4 @@ build/
 
 # Python version file
 .python-version
+live_test/  # live E2E harness from manual testing; not part of the package

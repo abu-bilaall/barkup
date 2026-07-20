@@ -58,6 +58,7 @@ class TestCliStructure:
             "verify",
             "restore",
             "profiles",
+            "prune",
         }
 
 
@@ -359,24 +360,29 @@ class TestStatusCommand:
 class TestVerifyCommand:
     @staticmethod
     def _seed(monkeypatch, tmp_path):
-        """Create two files, backup them, then return the in‑memory DB."""
+        """Create two source files + real backup copies, then return handles."""
         from barkup import database
         from barkup.database import open_connection, update_file_state
 
         conn = open_connection(db_path=Path(":memory:"))
-        # file a (will stay ok)
+        # source files (verify now checks the backup copy, not the source)
         a = tmp_path / "a.txt"
         a.write_text("unchanged")
-        hash_a = calculate_file_hash(str(a))
-        update_file_state(conn, "p", str(a), "/bk/a.txt", hash_a, a.stat().st_size)
-        # file b (will be corrupted later)
         b = tmp_path / "b.txt"
         b.write_text("good")
-        hash_b = calculate_file_hash(str(b))
-        update_file_state(conn, "p", str(b), "/bk/b.txt", hash_b, b.stat().st_size)
-        # patch open_connection used by CLI
+        # real backup copies that verify actually hashes
+        ba = tmp_path / "bk_a.txt"
+        ba.write_text("unchanged")
+        bb = tmp_path / "bk_b.txt"
+        bb.write_text("good")
+        update_file_state(
+            conn, "p", str(a), str(ba), calculate_file_hash(str(ba)), ba.stat().st_size
+        )
+        update_file_state(
+            conn, "p", str(b), str(bb), calculate_file_hash(str(bb)), bb.stat().st_size
+        )
         monkeypatch.setattr(database, "open_connection", lambda *a, **k: conn)
-        return conn, a, b
+        return conn, ba, bb
 
     def test_empty_db_shows_message(self, monkeypatch):
         from barkup import database
@@ -389,7 +395,7 @@ class TestVerifyCommand:
         assert "No backups found." in result.output
 
     def test_all_ok_exits_zero(self, monkeypatch, tmp_path):
-        _, a, _ = self._seed(monkeypatch, tmp_path)
+        _, ba, _ = self._seed(monkeypatch, tmp_path)
         runner = CliRunner()
         result = runner.invoke(cli, ["verify"])
         assert result.exit_code == 0
@@ -398,17 +404,17 @@ class TestVerifyCommand:
         assert "Mismatched: 0" in result.output
 
     def test_mismatch_causes_nonzero_exit(self, monkeypatch, tmp_path):
-        conn, _, b = self._seed(monkeypatch, tmp_path)
-        # corrupt file b
-        b.write_text("corrupted")
+        _, ba, bb = self._seed(monkeypatch, tmp_path)
+        # corrupt the backup copy
+        ba.write_text("corrupted")
         runner = CliRunner()
         result = runner.invoke(cli, ["verify"])
         assert result.exit_code == 1
         assert "Mismatched: 1" in result.output
 
     def test_missing_file_reported(self, monkeypatch, tmp_path):
-        conn, a, b = self._seed(monkeypatch, tmp_path)
-        a.unlink()
+        _, ba, bb = self._seed(monkeypatch, tmp_path)
+        ba.unlink()
         runner = CliRunner()
         result = runner.invoke(cli, ["verify"])
         assert result.exit_code == 1
@@ -550,3 +556,131 @@ class TestProfilesCommand:
         result = runner.invoke(cli, ["profiles"])
         assert result.exit_code == 0
         assert "No backup profiles found" in result.output
+
+
+class TestRunValidation:
+    @staticmethod
+    def _write_config(tmp_path, sources, destination):
+        cfg = tmp_path / "barkup.config.toml"
+        src = ", ".join(f'"{s}"' for s in sources)
+        cfg.write_text(
+            "[general]\n"
+            'profile_name = "default"\n'
+            "dry_run = false\n"
+            f"sources = [{src}]\n"
+            "compression = false\n"
+            "exclude = []\n"
+            "[local]\n"
+            f'destination = "{destination}"\n'
+        )
+        return cfg
+
+    def test_empty_sources_exits_1(self, tmp_path):
+        cfg = self._write_config(tmp_path, [], tmp_path / "dest")
+        runner = CliRunner()
+        result = runner.invoke(cli, ["--config", str(cfg), "run"])
+        assert result.exit_code == 1
+        assert "No backup sources" in result.output
+
+    def test_empty_destination_exits_1(self, tmp_path):
+        src = tmp_path / "src"
+        src.mkdir()
+        cfg = self._write_config(tmp_path, [str(src)], "")
+        runner = CliRunner()
+        result = runner.invoke(cli, ["--config", str(cfg), "run"])
+        assert result.exit_code == 1
+        assert "No backup destination" in result.output
+
+    def test_destination_inside_source_exits_1(self, tmp_path):
+        src = tmp_path / "src"
+        src.mkdir()
+        cfg = self._write_config(tmp_path, [str(src)], str(src))
+        runner = CliRunner()
+        result = runner.invoke(cli, ["--config", str(cfg), "run"])
+        assert result.exit_code == 1
+        assert "inside source" in result.output
+
+
+class TestPruneCommand:
+    @staticmethod
+    def _seed(monkeypatch, tmp_path):
+        from barkup import database
+        from barkup.database import open_connection, update_file_state
+
+        conn = open_connection(db_path=Path(":memory:"))
+        live = tmp_path / "live.txt"
+        live.write_text("x")
+        gone = tmp_path / "gone.txt"  # source deleted -> orphan
+        update_file_state(conn, "p", str(gone), "/bk/gone.txt", "h", 3)
+        update_file_state(conn, "p", str(live), "/bk/live.txt", "h", 1)
+        monkeypatch.setattr(database, "open_connection", lambda *a, **k: conn)
+        return conn
+
+    def test_dry_run_lists_orphans(self, monkeypatch, tmp_path):
+        self._seed(monkeypatch, tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(cli, ["prune"])
+        assert result.exit_code == 0
+        assert "Would remove 1 orphan record" in result.output
+        assert "Re-run with --yes" in result.output
+
+    def test_apply_removes_orphans(self, monkeypatch, tmp_path):
+        self._seed(monkeypatch, tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(cli, ["prune", "--yes"])
+        assert result.exit_code == 0
+        assert "Removed 1 orphan record" in result.output
+
+    def test_nothing_to_prune_message(self, monkeypatch, tmp_path):
+        from barkup import database
+        from barkup.database import open_connection
+        from pathlib import Path
+
+        conn = open_connection(db_path=Path(":memory:"))
+        monkeypatch.setattr(database, "open_connection", lambda *a, **k: conn)
+        runner = CliRunner()
+        result = runner.invoke(cli, ["prune"])
+        assert result.exit_code == 0
+        assert "Nothing to prune" in result.output
+
+
+class TestRestoreOverwriteGuard:
+    @staticmethod
+    def _seed(monkeypatch, tmp_path):
+        from barkup import database
+        from barkup.database import open_connection, update_file_state
+
+        db_path = tmp_path / "state.db"
+        conn = open_connection(db_path=db_path)
+        a = tmp_path / "a.txt"
+        a.write_text("alpha")
+        ba = tmp_path / "bk_a.txt"
+        ba.write_text("alpha")
+        b = tmp_path / "b.txt"
+        b.write_text("beta")
+        bb = tmp_path / "bk_b.txt"
+        bb.write_text("beta")
+        update_file_state(conn, "p", str(a), str(ba), "ha", a.stat().st_size)
+        update_file_state(conn, "p", str(b), str(bb), "hb", b.stat().st_size)
+        conn.close()
+        monkeypatch.setattr(
+            database,
+            "open_connection",
+            lambda *a, **k: open_connection(db_path=db_path),
+        )
+        return a
+
+    def test_restore_onto_existing_requires_yes(self, monkeypatch, tmp_path):
+        a = self._seed(monkeypatch, tmp_path)
+        runner = CliRunner()
+        # original `a` still exists on disk -> overwrite guard trips
+        result = runner.invoke(cli, ["restore", str(a), "--name", "p"])
+        assert result.exit_code == 1
+        assert "already exists" in result.output
+
+    def test_restore_onto_existing_with_yes(self, monkeypatch, tmp_path):
+        a = self._seed(monkeypatch, tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(cli, ["restore", str(a), "--name", "p", "--yes"])
+        assert result.exit_code == 0
+        assert "Restored" in result.output

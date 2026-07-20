@@ -15,6 +15,7 @@ If it's deleted, the next run does a full backup and rebuilds it.
 """
 
 import sqlite3
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -209,29 +210,73 @@ def get_all_backups(
     conn: sqlite3.Connection, profile: str | None = None
 ) -> list[sqlite3.Row]:
     """Return all backup rows, optionally filtered by profile.
-    Columns: profile, original_path, backup_path, hash.
+
+    Columns: id, profile, original_path, backup_path, hash.
     """
     cursor = conn.cursor()
     if profile:
         cursor.execute(
-            "SELECT profile, original_path, backup_path, hash FROM backups WHERE profile = ?",
+            "SELECT id, profile, original_path, backup_path, hash "
+            "FROM backups WHERE profile = ?",
             (profile,),
         )
     else:
-        cursor.execute("SELECT profile, original_path, backup_path, hash FROM backups")
+        cursor.execute(
+            "SELECT id, profile, original_path, backup_path, hash FROM backups"
+        )
     return cursor.fetchall()
 
 
 def verify_backup(entry: sqlite3.Row) -> str:
-    """Verify a single backup entry.
-    Returns "ok" if the original file exists and matches the stored hash,
-    "missing" if the file is absent, and "mismatch" if the hash differs.
+    """Verify a single backup entry against its stored backup copy.
+
+    Returns "ok" if the backup file exists and still matches the stored
+    hash, "missing" if the backup file is absent, and "mismatch" if the
+    hash differs (the backup was corrupted or replaced).
     """
-    original = Path(entry["original_path"])
-    if not original.is_file():
+    backup = Path(entry["backup_path"])
+    if not backup.is_file():
         return "missing"
     try:
-        current_hash = calculate_file_hash(original)
+        current_hash = calculate_file_hash(backup)
     except Exception:
         return "mismatch"
     return "ok" if current_hash == entry["hash"] else "mismatch"
+
+
+def prune_orphans(
+    conn: sqlite3.Connection,
+    profile: str | None = None,
+    delete_backups: bool = False,
+    apply: bool = False,
+) -> list[dict]:
+    """Return (and optionally remove) DB rows whose source no longer exists.
+
+    Such rows are orphans: the source was deleted but `run` never cleans
+    them up. By default this is a dry run -- the orphans are reported but
+    not removed. Pass ``apply=True`` to delete the DB rows (and, with
+    ``delete_backups=True``, the backup files on disk as well).
+    """
+    rows = get_all_backups(conn, profile)
+    removed: list[dict] = []
+    for row in rows:
+        if Path(row["original_path"]).is_file():
+            continue
+        backup_path = row["backup_path"]
+        if apply and delete_backups and backup_path and Path(backup_path).is_file():
+            try:
+                os.remove(backup_path)
+            except OSError:
+                pass
+        if apply:
+            conn.execute("DELETE FROM backups WHERE id = ?", (row["id"],))
+        removed.append(
+            {
+                "profile": row["profile"],
+                "original_path": row["original_path"],
+                "backup_path": backup_path,
+            }
+        )
+    if apply:
+        conn.commit()
+    return removed

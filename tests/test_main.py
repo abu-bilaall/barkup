@@ -6,11 +6,11 @@ import main
 
 def _raise_validation_error():
     # Produce a genuine Pydantic ValidationError as config loading would.
+    # `profile_name` is mandatory on GeneralConfig, so omitting it fails.
     try:
         from barkup.config_models import GeneralConfig
 
-        # `sources` is mandatory on GeneralConfig, so this fails validation.
-        GeneralConfig(profile_name="broken", sources=[])
+        GeneralConfig(sources=[])
     except ValidationError as e:
         raise e
 
