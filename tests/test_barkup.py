@@ -1,4 +1,7 @@
-from barkup.barkup import barkup_file
+from barkup.barkup import barkup_file, run_local_barkup
+from barkup.compression import decompress_file
+from barkup.database import get_file_state, open_connection
+from barkup.exclude_patterns import FileToBackup
 
 
 class TestBarkupFileFromFile:
@@ -96,3 +99,102 @@ class TestBarkupFileFromDirectory:
 
         assert (dest / "src" / "a.txt").read_text() == "A"
         assert (dest / "src" / "b.txt").read_text() == "B"
+
+
+class TestBarkupFileCompression:
+    """Test barkup_file's compress flag."""
+
+    def test_compress_creates_sidecar_zip(self, tmp_path):
+        src = tmp_path / "file.txt"
+        src.write_text("woof")
+        dest = tmp_path / "backup"
+
+        result = barkup_file(src, src, dest, source_is_dir=False, compress=True)
+
+        assert result.name == "file.txt.zip"
+        assert result.is_file()
+        out = tmp_path / "restored.txt"
+        decompress_file(result, out)
+        assert out.read_text() == "woof"
+
+    def test_compress_skips_already_compressed(self, tmp_path):
+        src = tmp_path / "a.zip"
+        src.write_bytes(b"PK\x03\x04fake")
+        dest = tmp_path / "backup"
+
+        result = barkup_file(src, src, dest, source_is_dir=False, compress=True)
+
+        # .zip sources are skipped, so the original is copied verbatim.
+        assert result.name == "a.zip"
+        assert result.read_bytes() == b"PK\x03\x04fake"
+
+    def test_compress_false_copies(self, tmp_path):
+        src = tmp_path / "file.txt"
+        src.write_text("woof")
+        dest = tmp_path / "backup"
+
+        result = barkup_file(src, src, dest, source_is_dir=False, compress=False)
+
+        assert result.name == "file.txt"
+        assert result.read_text() == "woof"
+
+
+class TestRunLocalBarkupCompression:
+    """Test that run_local_barkup honours the compression flag + DB flag."""
+
+    def _state(self, conn, path, profile="p"):
+        row = get_file_state(conn, str(path), profile)
+        conn.commit()
+        return row
+
+    def test_compresses_plain_file_and_records_flag(self, tmp_path):
+        src_dir = tmp_path / "docs"
+        src_dir.mkdir()
+        plain = src_dir / "notes.txt"
+        plain.write_text("hello")
+        already = src_dir / "pic.jpg"
+        already.write_text("imgbytes")
+        dest = tmp_path / "backup"
+        conn = open_connection(db_path=tmp_path / "state.db")
+        try:
+            run_local_barkup(
+                [
+                    FileToBackup(path=plain, source=src_dir, source_is_dir=True),
+                    FileToBackup(path=already, source=src_dir, source_is_dir=True),
+                ],
+                dest,
+                conn,
+                "p",
+                compression=True,
+            )
+            plain_state = self._state(conn, plain)
+            jpg_state = self._state(conn, already)
+        finally:
+            conn.close()
+
+        assert plain_state["backup_path"].endswith(".zip")
+        assert plain_state["compressed"] == 1
+        assert not jpg_state["backup_path"].endswith(".zip")
+        assert jpg_state["compressed"] == 0
+
+    def test_no_compression_when_disabled(self, tmp_path):
+        src_dir = tmp_path / "docs"
+        src_dir.mkdir()
+        plain = src_dir / "notes.txt"
+        plain.write_text("hello")
+        dest = tmp_path / "backup"
+        conn = open_connection(db_path=tmp_path / "state.db")
+        try:
+            run_local_barkup(
+                [FileToBackup(path=plain, source=src_dir, source_is_dir=True)],
+                dest,
+                conn,
+                "p",
+                compression=False,
+            )
+            state = self._state(conn, plain)
+        finally:
+            conn.close()
+
+        assert not state["backup_path"].endswith(".zip")
+        assert state["compressed"] == 0

@@ -17,10 +17,15 @@ from barkup.database import (
     close_connection,
 )
 from barkup.hashing import calculate_file_hash
+from barkup.compression import compress_file, should_compress
 
 
 def barkup_file(
-    file_path: Path, source_root: Path, destination: Path, source_is_dir: bool
+    file_path: Path,
+    source_root: Path,
+    destination: Path,
+    source_is_dir: bool,
+    compress: bool = False,
 ) -> Path:
     # Calculate relative path from source root
     if source_is_dir:
@@ -33,6 +38,11 @@ def barkup_file(
 
     # Create parent directories if needed
     dest_file.parent.mkdir(parents=True, exist_ok=True)
+
+    # Compress to a sidecar .zip when requested and the format benefits.
+    if compress and should_compress(file_path):
+        dest_zip = dest_file.parent / (dest_file.name + ".zip")
+        return compress_file(file_path, dest_zip)
 
     # Copy the file (with metadata preserved)
     shutil.copy2(file_path, dest_file)
@@ -111,7 +121,13 @@ def run_barkup(
         print("\nRunning backups...")
 
         if changed_files:
-            run_local_barkup(changed_files, local_destination, conn, profile)
+            run_local_barkup(
+                changed_files,
+                local_destination,
+                conn,
+                profile,
+                local_config.compression,
+            )
 
         if cloud_configs:
             run_cloud_barkup(cloud_configs)
@@ -167,6 +183,7 @@ def run_local_barkup(
     destination: Path,
     conn: sqlite3.Connection,
     profile: str,
+    compression: bool = False,
 ) -> None:
     """Run the local backup process with state tracking."""
     print("\n======= Local Backup ======")
@@ -180,6 +197,7 @@ def run_local_barkup(
                 source_root=file_info.source,
                 destination=destination,
                 source_is_dir=file_info.source_is_dir,
+                compress=compression,
             )
 
             # update state after successful copy
@@ -192,6 +210,7 @@ def run_local_barkup(
                 backup_path=str(backed_up_path),
                 file_hash=file_hash,
                 size=file_size,
+                compressed=compression and should_compress(file_info.path),
             )
 
             print(f"  ✓ {file_info.path.name}")
