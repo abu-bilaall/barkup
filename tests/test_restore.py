@@ -8,9 +8,11 @@ return a *fresh* connection to that same file each time, mirroring production.
 """
 
 import pytest
+import zipfile
 from pathlib import Path
 
 from barkup import database
+from barkup.compression import compress_file
 from barkup.database import open_connection, update_file_state
 from barkup.restore import (
     find_backup_path,
@@ -197,3 +199,71 @@ class TestRestoreAllFiles:
 
         assert results["restored"] == 0
         assert len(results["failed"]) == 2
+
+
+class TestRestoreFileCompression:
+    def test_restores_compressed_backup(self, monkeypatch, tmp_path):
+        conn, db_path = _shared_db(tmp_path)
+        _patch_open(monkeypatch, db_path)
+        original = tmp_path / "docs" / "notes.txt"
+        original.parent.mkdir(parents=True, exist_ok=True)
+        original.write_text("secret")
+        backup_zip = tmp_path / "bk" / "notes.txt.zip"
+        compress_file(original, backup_zip)
+        update_file_state(
+            conn, "p", str(original), str(backup_zip), "h", 10, compressed=True
+        )
+        conn.close()
+
+        restored = restore_file(str(original))
+
+        assert restored.read_text() == "secret"
+
+    def test_restores_genuine_zip_as_is(self, monkeypatch, tmp_path):
+        conn, db_path = _shared_db(tmp_path)
+        _patch_open(monkeypatch, db_path)
+        original = tmp_path / "restore_target" / "archive.zip"
+        backup_zip = tmp_path / "bk" / "archive.zip"
+        backup_zip.parent.mkdir(parents=True, exist_ok=True)
+        with zipfile.ZipFile(backup_zip, "w") as zf:
+            zf.writestr("inner.txt", "inner-content")
+        update_file_state(
+            conn, "p", str(original), str(backup_zip), "h", 10, compressed=False
+        )
+        conn.close()
+
+        restored = restore_file(str(original))
+
+        # A genuine .zip original must stay a valid zip (not decompressed).
+        assert restored.is_file()
+        with zipfile.ZipFile(restored) as zf:
+            assert zf.namelist() == ["inner.txt"]
+
+
+class TestRestoreAllCompression:
+    def test_handles_compressed_and_plain(self, monkeypatch, tmp_path):
+        conn, db_path = _shared_db(tmp_path)
+        _patch_open(monkeypatch, db_path)
+        a = tmp_path / "docs" / "a.txt"
+        a.parent.mkdir(parents=True, exist_ok=True)
+        a.write_text("aaa")
+        ba = tmp_path / "bk" / "a.txt.zip"
+        compress_file(a, ba)
+
+        b = tmp_path / "restore_target" / "b.zip"
+        bb = tmp_path / "bk" / "b.zip"
+        bb.parent.mkdir(parents=True, exist_ok=True)
+        with zipfile.ZipFile(bb, "w") as zf:
+            zf.writestr("x.txt", "xxx")
+
+        update_file_state(conn, "p", str(a), str(ba), "ha", 3, compressed=True)
+        update_file_state(conn, "p", str(b), str(bb), "hb", 3, compressed=False)
+        conn.close()
+
+        results = restore_all_files("p")
+
+        assert results["restored"] == 2
+        assert results["failed"] == []
+        assert (tmp_path / "docs" / "a.txt").read_text() == "aaa"
+        with zipfile.ZipFile(tmp_path / "restore_target" / "b.zip") as zf:
+            assert zf.namelist() == ["x.txt"]

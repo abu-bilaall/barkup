@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS backups (
     backup_path TEXT NOT NULL,
     hash        TEXT NOT NULL,
     size        INTEGER NOT NULL,
+    compressed  INTEGER NOT NULL DEFAULT 0,
     last_backup TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     UNIQUE(profile, original_path)
 );
@@ -56,8 +57,14 @@ def open_connection(db_path: Path | None = None) -> sqlite3.Connection:
 
 
 def initialize_database(conn: sqlite3.Connection) -> None:
-    """Create tables and indexes if they don't exist."""
+    """Create tables and indexes, and migrate older schemas."""
     conn.executescript(SCHEMA)
+    # Backfill the `compressed` column for databases created before it existed.
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(backups)")}
+    if "compressed" not in columns:
+        conn.execute(
+            "ALTER TABLE backups ADD COLUMN compressed INTEGER NOT NULL DEFAULT 0"
+        )
     conn.commit()
 
 
@@ -96,22 +103,26 @@ def update_file_state(
     backup_path: str,
     file_hash: str,
     size: int,
+    compressed: bool = False,
 ) -> None:
     """Insert or update the state record for a backed-up file."""
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     conn.execute(
         """
-        INSERT INTO backups (profile, original_path, backup_path, hash, size, last_backup)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO backups (
+            profile, original_path, backup_path, hash, size, compressed, last_backup
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(profile, original_path)
         DO UPDATE SET
             backup_path = excluded.backup_path,
             hash        = excluded.hash,
             size        = excluded.size,
+            compressed  = excluded.compressed,
             last_backup = excluded.last_backup
         """,
-        (profile, original_path, backup_path, file_hash, size, now),
+        (profile, original_path, backup_path, file_hash, size, compressed, now),
     )
     conn.commit()
 

@@ -16,7 +16,10 @@ dry_run = false # Whether to enable dry-run mode (no actual copying)
 # List of directories to back up
 sources = ["/home/user/Documents", "/home/user/Pictures"]
 
-# Whether to compress backups
+# Whether to compress backups with ZIP
+# When true, plain files are stored as .zip archives (already-compressed
+# formats like .zip/.jpg/.mp3 are skipped automatically); restore
+# decompresses them transparently.
 compression = false
 
 # what to exclude, support pattern-matching

@@ -334,3 +334,26 @@ class TestVerifyBackup:
         update_file_state(conn, "p", str(f), "/bk/a.txt", h, f.stat().st_size)
         row = get_all_backups(conn, "p")[0]
         assert verify_backup(row) == "ok"
+
+
+class TestSchemaMigration:
+    def test_initialize_adds_compressed_column_when_missing(self, tmp_path):
+        from barkup.database import open_connection
+
+        db_path = tmp_path / "old.db"
+        conn = open_connection(db_path=db_path)
+        # Simulate the pre-compressed-column schema.
+        conn.execute("DROP TABLE IF EXISTS backups")
+        conn.execute(
+            "CREATE TABLE backups ("
+            "id INTEGER PRIMARY KEY, profile TEXT, original_path TEXT, "
+            "backup_path TEXT, hash TEXT, size INTEGER, last_backup TEXT)"
+        )
+        conn.commit()
+        conn.close()
+
+        # Re-opening runs initialize_database, which migrates the schema.
+        conn2 = open_connection(db_path=db_path)
+        cols = {row[1] for row in conn2.execute("PRAGMA table_info(backups)")}
+        assert "compressed" in cols
+        conn2.close()

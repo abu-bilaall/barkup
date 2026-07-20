@@ -12,6 +12,7 @@ import shutil
 from pathlib import Path
 
 from barkup import database
+from barkup.compression import decompress_file
 
 
 def _restore_target(original_path: str, destination: str | None) -> Path:
@@ -91,7 +92,27 @@ def restore_file(
     Raises:
         FileNotFoundError: If no DB row matches or the backup file is missing.
     """
-    backup_path_str = find_backup_path(original_path, profile)
+    resolved = str(Path(original_path).resolve())
+    backup_path_str = None
+    compressed = False
+    conn = database.open_connection()
+    try:
+        if profile:
+            row = conn.execute(
+                "SELECT backup_path, compressed FROM backups "
+                "WHERE original_path = ? AND profile = ?",
+                (resolved, profile),
+            ).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT backup_path, compressed FROM backups WHERE original_path = ?",
+                (resolved,),
+            ).fetchone()
+        if row:
+            backup_path_str = row["backup_path"]
+            compressed = bool(row["compressed"])
+    finally:
+        database.close_connection(conn)
 
     if not backup_path_str:
         if profile:
@@ -106,7 +127,10 @@ def restore_file(
 
     restore_path = _restore_target(original_path, destination)
     restore_path.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(backup_path, restore_path)
+    if compressed:
+        decompress_file(backup_path, restore_path)
+    else:
+        shutil.copy2(backup_path, restore_path)
     return restore_path
 
 
@@ -129,7 +153,7 @@ def restore_all_files(profile: str, destination: str | None = None) -> dict:
     conn = database.open_connection()
     try:
         rows = conn.execute(
-            "SELECT original_path, backup_path FROM backups "
+            "SELECT original_path, backup_path, compressed FROM backups "
             "WHERE profile = ? ORDER BY original_path",
             (profile,),
         ).fetchall()
@@ -140,7 +164,7 @@ def restore_all_files(profile: str, destination: str | None = None) -> dict:
         raise ValueError(f"No backups found for profile '{profile}'")
 
     results: dict = {"restored": 0, "failed": []}
-    for original_path, backup_path in rows:
+    for original_path, backup_path, compressed in rows:
         try:
             backup_file = Path(backup_path)
             if not backup_file.is_file():
@@ -151,9 +175,11 @@ def restore_all_files(profile: str, destination: str | None = None) -> dict:
 
             restore_path = _profile_restore_target(original_path, destination)
             restore_path.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(backup_file, restore_path)
+            if compressed:
+                decompress_file(backup_file, restore_path)
+            else:
+                shutil.copy2(backup_file, restore_path)
             results["restored"] += 1
         except OSError as e:
             results["failed"].append({"path": original_path, "error": str(e)})
-
     return results
