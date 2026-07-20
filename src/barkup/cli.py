@@ -187,6 +187,35 @@ def verify(name):
 
 
 @cli.command()
+def profiles():
+    """List all backup profiles."""
+    from barkup.database import (
+        open_connection,
+        close_connection,
+        get_backup_stats,
+        format_size,
+    )
+
+    conn = open_connection()
+    try:
+        stats = get_backup_stats(conn, None)
+    finally:
+        close_connection(conn)
+
+    if not stats:
+        click.echo("No backup profiles found")
+        return
+
+    click.echo("Backup Profiles:")
+    click.echo("=" * 70)
+    for profile, s in stats.items():
+        click.echo(f"\n{profile}")
+        click.echo(f"  Files: {s['file_count']}")
+        click.echo(f"  Total size: {format_size(s['total_size'])}")
+        click.echo(f"  Last backup: {s['last_backup']}")
+
+
+@cli.command()
 @click.argument("path", required=False)
 @click.option("--to", "destination", help="Restore to custom location")
 @click.option("--all", "restore_all", is_flag=True, help="Restore entire backup set")
@@ -229,4 +258,4 @@ def restore(path, destination, restore_all, name):
 
 
 if __name__ == "__main__":
-    cli()
+    cli()  # type: ignore[reportCallIssue]

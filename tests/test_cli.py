@@ -50,7 +50,15 @@ class TestCliStructure:
     def test_subcommands_are_registered(self):
         # Each command name maps to a callback in the group.
         names = {cmd.name for cmd in cli.commands.values()}
-        assert names == {"init", "run", "list", "status", "verify", "restore"}
+        assert names == {
+            "init",
+            "run",
+            "list",
+            "status",
+            "verify",
+            "restore",
+            "profiles",
+        }
 
 
 class TestResolveProfileName:
@@ -504,3 +512,41 @@ class TestRestoreCommand:
         result = runner.invoke(cli, ["restore", "--all", "--name", "nope"])
         assert result.exit_code == 1
         assert "No backups found" in result.output
+
+
+class TestProfilesCommand:
+    @staticmethod
+    def _seed(monkeypatch):
+        from barkup import database
+        from barkup.database import open_connection, update_file_state
+        from pathlib import Path
+
+        conn = open_connection(db_path=Path(":memory:"))
+        update_file_state(conn, "work", "/a.txt", "/bk/a.txt", "ha", 1024)
+        update_file_state(conn, "work", "/b.txt", "/bk/b.txt", "hb", 2048)
+        update_file_state(conn, "home", "/c.txt", "/bk/c.txt", "hc", 512)
+        monkeypatch.setattr(database, "open_connection", lambda *a, **k: conn)
+        return conn
+
+    def test_lists_all_profiles(self, monkeypatch):
+        self._seed(monkeypatch)
+        runner = CliRunner()
+        result = runner.invoke(cli, ["profiles"])
+        assert result.exit_code == 0
+        assert "Backup Profiles:" in result.output
+        assert "work" in result.output
+        assert "home" in result.output
+        assert "Files: 2" in result.output
+        assert "Files: 1" in result.output
+
+    def test_empty_db_prints_message(self, monkeypatch):
+        from barkup import database
+        from barkup.database import open_connection
+        from pathlib import Path
+
+        conn = open_connection(db_path=Path(":memory:"))
+        monkeypatch.setattr(database, "open_connection", lambda *a, **k: conn)
+        runner = CliRunner()
+        result = runner.invoke(cli, ["profiles"])
+        assert result.exit_code == 0
+        assert "No backup profiles found" in result.output

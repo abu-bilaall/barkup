@@ -24,3 +24,21 @@ jobs:
       - uses: astral-sh/setup-uv@v5
       - name: Run tests
         run: uv run pytest -v
+
+  type:
+    name: Type check (pyright)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Pyright
+        run: uv run pyright
+
+  build:
+    name: Build distribution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Build
+        run: uv build

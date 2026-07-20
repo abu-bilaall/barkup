@@ -231,7 +231,7 @@ def verify_backup(entry: sqlite3.Row) -> str:
     if not original.is_file():
         return "missing"
     try:
-        current_hash = calculate_file_hash(str(original))
+        current_hash = calculate_file_hash(original)
     except Exception:
         return "mismatch"
     return "ok" if current_hash == entry["hash"] else "mismatch"

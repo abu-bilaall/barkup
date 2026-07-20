@@ -28,6 +28,7 @@ Issues = "https://github.com/abu-bilaall/barkup/issues"
 dev = [
     "black>=26.5.1",
     "pre-commit>=4.6.0",
+    "pyright>=1.1.411",
     "pytest>=9.0.2",
     "ruff>=0.15.22",
 ]
@@ -51,6 +52,8 @@ pythonpath = "src"
 [tool.pyright]
 extraPaths = ["src"]
 typeCheckingMode = "standard"
+include = ["src"]
+reportFunctionMemberAccess = "none"
 
 [tool.black]
 target-version = ['py312']
