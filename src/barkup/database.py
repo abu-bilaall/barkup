@@ -260,8 +260,10 @@ def prune_orphans(
     rows = get_all_backups(conn, profile)
     removed: list[dict] = []
     for row in rows:
-        if Path(row["original_path"]).is_file():
+        if Path(row["original_path"]).exists():
+            # Source still exists, not an orphan
             continue
+        # Orphan: source was deleted
         backup_path = row["backup_path"]
         if apply and delete_backups and backup_path and Path(backup_path).is_file():
             try:

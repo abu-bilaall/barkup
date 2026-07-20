@@ -221,3 +221,51 @@ class TestDotfileExclusion:
         )
         result = resolve_excluded(cfg)
         assert [f.path.name for f in result] == ["a.txt"]
+
+
+class TestSymlinkExclusion:
+    def test_symlinked_directory_is_skipped(self, tmp_path):
+        """Symlinked directories are NOT traversed (avoid external trees)."""
+        real_dir = tmp_path / "real_dir"
+        real_dir.mkdir()
+        (real_dir / "inner.txt").write_text("inner")
+
+        source = tmp_path / "source"
+        source.mkdir()
+        (source / "regular.txt").write_text("regular")
+        symlink_dir = source / "link_to_dir"
+        symlink_dir.symlink_to(real_dir)
+
+        result = scan_sources([str(source)])
+        names = [f.path.name for f in result]
+        # Only regular.txt should be backed up, NOT inner.txt via the symlink
+        assert names == ["regular.txt"]
+
+    def test_symlinked_file_is_followed(self, tmp_path):
+        """Symlinked files ARE followed (single file reference, no recursion risk)."""
+        real = tmp_path / "real.txt"
+        real.write_text("real")
+        source = tmp_path / "source"
+        source.mkdir()
+        link = source / "link.txt"
+        link.symlink_to(real)
+
+        result = scan_sources([str(source)])
+        # Symlinked file is included (path is the link itself, not resolved)
+        assert len(result) == 1
+        assert result[0].path == link
+
+    def test_explicit_symlinked_directory_source_is_followed(self, tmp_path):
+        """If the SOURCE itself is a symlinked directory, it IS followed."""
+        real_dir = tmp_path / "real_dir"
+        real_dir.mkdir()
+        (real_dir / "content.txt").write_text("content")
+
+        link_dir = tmp_path / "link_dir"
+        link_dir.symlink_to(real_dir)
+
+        # Explicitly naming the symlinked directory as a source
+        result = scan_sources([str(link_dir)])
+        # Content should be included (source itself is explicit)
+        assert len(result) == 1
+        assert result[0].path.name == "content.txt"

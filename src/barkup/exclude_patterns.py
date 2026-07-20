@@ -40,6 +40,9 @@ def scan_sources(sources: list[str]) -> list[FileToBackup]:
     unless the source was explicitly named by the user -- an explicitly
     listed file, or a dotfile-named directory, is always included along
     with its whole tree.
+
+    Symlinks are skipped to prevent over-backup of external trees and
+    cyclic traversal.
     """
     files_to_backup = []
 
@@ -59,6 +62,10 @@ def scan_sources(sources: list[str]) -> list[FileToBackup]:
             )
         elif source_path.is_dir():
             for file in source_path.rglob("*"):
+                # Skip symlinked directories (avoid recursing external trees and cycles)
+                # but follow symlinked files (single reference, no recursion risk)
+                if file.is_symlink() and file.is_dir():
+                    continue
                 if not file.is_file():
                     continue
                 if not explicit_dot:

@@ -240,7 +240,7 @@ def prune(name, delete_backups, apply):
 
     conn = open_connection()
     try:
-        removed = prune_orphans(conn, name, delete_backups=delete_backups)
+        removed = prune_orphans(conn, name, delete_backups=delete_backups, apply=apply)
     finally:
         close_connection(conn)
 
