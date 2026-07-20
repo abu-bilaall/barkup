@@ -18,7 +18,7 @@ This plan establishes the complete development roadmap for Barkup from its curre
 - ❌ Compression (ZIP) - NOT STARTED
 - ❌ Google Drive integration - NOT STARTED
 - ✅ Installable package - COMPLETE
-- ❌ Documentation (README) - EMPTY
+- ✅ Documentation (README) - COMPLETE
 
 **Testing Philosophy Agreement:**
 Unit tests are the right primary focus for a CLI tool. Integration/E2E tests will be valuable later for command workflows, but unit tests give the fastest feedback loop and highest ROI during feature development. We'll add integration tests after MVP CLI is working.
@@ -1012,8 +1012,8 @@ uv pip uninstall barkup
 
 ---
 
-#### Step 3.1b: CD - Automated PyPI Publish (Release Workflow) ❌ NOT STARTED
-**Branch:** `feature/packaging` (same as 3.1)
+- #### Step 3.1b: CD - Automated PyPI Publish (Release Workflow) ✅ COMPLETE
+**Branch:** `feature/packaging-cd-and-docs`
 
 Build and publish is **Continuous Deployment (CD)**, distinct from the CI
 pipeline added in Step 0.3. It runs only on tagged releases, not on every PR,
@@ -1021,41 +1021,43 @@ so it never blocks normal development.
 
 **Create:** `.github/workflows/release.yml`
 ```yaml
-name: Release
-on:
-  push:
-    tags: ["v*"]
-jobs:
-  publish:
-    name: Build and publish to PyPI
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
-      - name: Build distribution
-        run: uv build
-      - name: Publish to PyPI
-        env:
-          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_TOKEN }}
-        run: uv publish
+- name: Release
+- on:
+-   push:
+-     tags: ["v*"]
+- jobs:
+-   publish:
+-     name: Build and publish to PyPI
+-     runs-on: ubuntu-latest
+-     environment: pypi
+-     permissions:
+-       id-token: write
+-     steps:
+-       - uses: actions/checkout@v4
+-       - uses: astral-sh/setup-uv@v5
+-       - name: Build distribution
+-         run: uv build
+-       - name: Publish to PyPI
+-         uses: pypa/gh-action-pypi-publish@release/v1
 ```
 
-**Prerequisites:** Requires the `[build-system]` (hatchling) added in Step 3.1 so
-`uv build` can produce wheel + sdist, and a `PYPI_TOKEN` repository secret.
+- **Prerequisites:** Requires the `[build-system]` (hatchling) added in Step 3.1 so
+- `uv build` can produce wheel + sdist, and a PyPI **Trusted Publisher** configured for
+- this repo (OIDC — no token secret required).
 
 **Acceptance:** Pushing a `v*` tag builds the distribution and publishes it to
 PyPI; CI (Step 0.3) remains the gate for PRs into `dev`/`main`.
 
 ---
 
-#### Step 3.2: Write Comprehensive README ❌ NOT STARTED
-**Branch:** Same as 3.1 (`feature/packaging`)
+- #### Step 3.2: Write Comprehensive README ✅ COMPLETE
+**Branch:** `feature/packaging-cd-and-docs`
 
 **Update:** `README.md` - populate with full documentation.
 
 Structure (from spec.md):
 1. Project Description
-   - What Barkup is
+   - What Barkup is (I prefer the simple one in pyproject.toml).
    - Key features (incremental, SHA256, exclude patterns, dry-run)
    - Why it exists (simple, config-driven backups)
 
@@ -1108,6 +1110,8 @@ Structure (from spec.md):
 
 7. License
    - MIT License link
+
+Note: Defer to the structure I will provide you (ask for it).
 
 **Acceptance:** README.md complete, covers all implemented features, includes examples.
 
