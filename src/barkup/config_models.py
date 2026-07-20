@@ -31,8 +31,9 @@ class GeneralConfig(BaseModel):
     @field_validator("sources")
     @classmethod
     def sources_not_empty(cls, v: list[str]) -> list[str]:
-        if not v:
-            raise ValueError("At least one source path is required in [general]")
+        # Empty sources are allowed at load time (e.g. a config produced by
+        # `barkup init` before the user fills it in). `barkup run` validates
+        # that sources and destination are set before backing up.
         return v
 
 

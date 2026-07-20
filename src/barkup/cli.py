@@ -57,12 +57,16 @@ def init(force):
     init_config(force=force)
 
     click.echo(f"Config created at '{config_path}'.")
-    click.echo(f"See '{config_path.parent / 'config.example.toml'}' for all options.")
+    click.echo("Edit [general] sources and [local] destination, then run: barkup run")
 
 
 @cli.command()
 @click.option("--name", help="Backup profile name")
-@click.option("--yes", is_flag=True, help="Skip confirmation prompts")
+@click.option(
+    "--yes",
+    is_flag=True,
+    help="No-op; accepted for automation (dry-run never copies)",
+)
 @click.pass_context
 def run(ctx, name, yes):
     """Run backup using config."""
@@ -81,13 +85,16 @@ def run(ctx, name, yes):
             skip_confirm=yes,
         )
 
-        click.echo("\n✓ Backup completed successfully")
+        if stats.get("dry_run"):
+            click.echo("\n✓ Dry run complete — no files were copied")
+        else:
+            click.echo("\n✓ Backup completed successfully")
         click.echo(f"  New files: {stats['new_files']}")
         click.echo(f"  Modified files: {stats['modified_files']}")
         click.echo(f"  Skipped (unchanged): {stats['skipped_files']}")
         sys.exit(0)
 
-    except FileNotFoundError as e:
+    except (FileNotFoundError, ValueError) as e:
         click.echo(f"Error: {e}", err=True)
         sys.exit(1)
     except KeyboardInterrupt:
@@ -216,11 +223,55 @@ def profiles():
 
 
 @cli.command()
+@click.option("--name", help="Filter by profile name")
+@click.option(
+    "--delete-backups", is_flag=True, help="Also delete the backup files on disk"
+)
+@click.option(
+    "--yes", "apply", is_flag=True, help="Apply removal (default is a dry run)"
+)
+def prune(name, delete_backups, apply):
+    """Remove backup records whose source files no longer exist."""
+    from barkup.database import (
+        open_connection,
+        close_connection,
+        prune_orphans,
+    )
+
+    conn = open_connection()
+    try:
+        removed = prune_orphans(conn, name, delete_backups=delete_backups)
+    finally:
+        close_connection(conn)
+
+    if not removed:
+        click.echo("Nothing to prune — all sources still exist.")
+        return
+
+    if not apply:
+        click.echo(f"Would remove {len(removed)} orphan record(s) (dry run):")
+        for r in removed:
+            click.echo(f"  - {r['original_path']} [{r['profile']}]")
+        click.echo("\nRe-run with --yes to apply.")
+        return
+
+    click.echo(f"Removed {len(removed)} orphan record(s).")
+    if delete_backups:
+        click.echo("Backup files were also deleted.")
+
+
+@cli.command()
 @click.argument("path", required=False)
 @click.option("--to", "destination", help="Restore to custom location")
 @click.option("--all", "restore_all", is_flag=True, help="Restore entire backup set")
 @click.option("--name", help="Profile name")
-def restore(path, destination, restore_all, name):
+@click.option(
+    "--yes",
+    "yes",
+    is_flag=True,
+    help="Overwrite an existing restore target without prompting",
+)
+def restore(path, destination, restore_all, name, yes):
     """Restore files from backup."""
     from barkup.restore import restore_all_files, restore_file
 
@@ -247,6 +298,18 @@ def restore(path, destination, restore_all, name):
     if not path:
         click.echo("Error: PATH argument required (or use --all)", err=True)
         sys.exit(1)
+
+    # Restoring onto an existing original (no --to) would clobber local
+    # changes. Require --yes to overwrite, or use --to to pick a target.
+    if not destination:
+        target = Path(path).resolve()
+        if target.exists() and not yes:
+            click.echo(
+                f"Error: restore target '{target}' already exists. "
+                f"Pass --yes to overwrite or use --to <dir>.",
+                err=True,
+            )
+            sys.exit(1)
 
     try:
         restored_path = restore_file(path, destination, name)

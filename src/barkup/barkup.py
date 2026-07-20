@@ -69,6 +69,25 @@ def run_barkup(
 
     profile = local_config.profile_name
 
+    # Validate configuration before touching anything on disk.
+    if not local_config.sources:
+        raise ValueError(
+            "No backup sources configured. Set [general] sources (or [local] "
+            "sources) in your config, then run again."
+        )
+    if not local_config.destination or not local_config.destination.strip():
+        raise ValueError(
+            "No backup destination configured. Set [local] destination in your config."
+        )
+    destination = Path(local_config.destination).expanduser().resolve()
+    for source in local_config.sources:
+        source_path = Path(source).expanduser().resolve()
+        if destination == source_path or destination.is_relative_to(source_path):
+            raise ValueError(
+                f"Backup destination '{destination}' is inside source "
+                f"'{source_path}'. Choose a destination outside your sources."
+            )
+
     # open state database
     conn = open_connection()
 
@@ -96,6 +115,17 @@ def run_barkup(
         # show change summary
         _print_change_summary(new_files, modified_files, unchanged_count)
 
+        # dry run: preview only, never copy.
+        if local_config.dry_run:
+            print("\n(dry run — no files were copied)")
+            return {
+                "files_backed_up": 0,
+                "new_files": len(new_files),
+                "modified_files": len(modified_files),
+                "skipped_files": unchanged_count,
+                "dry_run": True,
+            }
+
         # if nothing changed, exit early
         if not changed_files and not cloud_files_to_backup:
             print("\n✅ Everything is up to date. No files need backing up.")
@@ -104,19 +134,8 @@ def run_barkup(
                 "new_files": len(new_files),
                 "modified_files": len(modified_files),
                 "skipped_files": unchanged_count,
+                "dry_run": False,
             }
-
-        # if dry-run: ask if they want to proceed
-        if local_config.dry_run and not skip_confirm:
-            response = input("\nProceed with backup? [y/N]: ").strip().lower()
-            if response != "y":
-                print("Backup cancelled.")
-                return {
-                    "files_backed_up": 0,
-                    "new_files": len(new_files),
-                    "modified_files": len(modified_files),
-                    "skipped_files": unchanged_count,
-                }
 
         print("\nRunning backups...")
 
@@ -139,6 +158,7 @@ def run_barkup(
         "new_files": len(new_files),
         "modified_files": len(modified_files),
         "skipped_files": unchanged_count,
+        "dry_run": False,
     }
 
 

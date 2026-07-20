@@ -304,34 +304,38 @@ class TestGetAllBackups:
 
 
 class TestVerifyBackup:
-    def test_missing_file_returns_missing(self, monkeypatch, tmp_path):
+    def test_missing_file_returns_missing(self, tmp_path):
         conn = _memory_connection()
-        f = tmp_path / "a.txt"
-        f.write_text("data")
-        hash_val = calculate_file_hash(str(f))
-        update_file_state(conn, "p", str(f), "/bk/a.txt", hash_val, f.stat().st_size)
-        # delete the file to simulate missing
-        f.unlink()
+        backup = tmp_path / "bk_a.txt"
+        backup.write_text("data")
+        h = calculate_file_hash(str(backup))
+        update_file_state(
+            conn, "p", "/src/a.txt", str(backup), h, backup.stat().st_size
+        )
+        backup.unlink()
         row = get_all_backups(conn, "p")[0]
         assert verify_backup(row) == "missing"
 
-    def test_mismatch_returns_mismatch(self, monkeypatch, tmp_path):
+    def test_mismatch_returns_mismatch(self, tmp_path):
         conn = _memory_connection()
-        f = tmp_path / "a.txt"
-        f.write_text("original")
-        good_hash = calculate_file_hash(str(f))
-        update_file_state(conn, "p", str(f), "/bk/a.txt", good_hash, f.stat().st_size)
-        # modify file
-        f.write_text("changed")
+        backup = tmp_path / "bk_a.txt"
+        backup.write_text("original")
+        h = calculate_file_hash(str(backup))
+        update_file_state(
+            conn, "p", "/src/a.txt", str(backup), h, backup.stat().st_size
+        )
+        backup.write_text("changed")
         row = get_all_backups(conn, "p")[0]
         assert verify_backup(row) == "mismatch"
 
-    def test_ok_returns_ok(self, monkeypatch, tmp_path):
+    def test_ok_returns_ok(self, tmp_path):
         conn = _memory_connection()
-        f = tmp_path / "a.txt"
-        f.write_text("unchanged")
-        h = calculate_file_hash(str(f))
-        update_file_state(conn, "p", str(f), "/bk/a.txt", h, f.stat().st_size)
+        backup = tmp_path / "bk_a.txt"
+        backup.write_text("unchanged")
+        h = calculate_file_hash(str(backup))
+        update_file_state(
+            conn, "p", "/src/a.txt", str(backup), h, backup.stat().st_size
+        )
         row = get_all_backups(conn, "p")[0]
         assert verify_backup(row) == "ok"
 
@@ -357,3 +361,62 @@ class TestSchemaMigration:
         cols = {row[1] for row in conn2.execute("PRAGMA table_info(backups)")}
         assert "compressed" in cols
         conn2.close()
+
+
+from barkup.database import prune_orphans
+
+
+class TestPruneOrphans:
+    def test_dry_run_reports_without_removing(self, tmp_path):
+        conn = _memory_connection()
+        live = tmp_path / "live.txt"
+        live.write_text("x")
+        gone = tmp_path / "gone.txt"
+        update_file_state(conn, "p", str(gone), "/bk/gone.txt", "h", 3)
+        update_file_state(conn, "p", str(live), "/bk/live.txt", "h", 1)
+        removed = prune_orphans(conn, None)
+        assert len(removed) == 1
+        assert removed[0]["original_path"] == str(gone)
+        # dry run: rows still present
+        assert len(get_all_backups(conn, None)) == 2
+
+    def test_apply_removes_orphans_keeps_live(self, tmp_path):
+        conn = _memory_connection()
+        live = tmp_path / "live.txt"
+        live.write_text("x")
+        gone = tmp_path / "gone.txt"
+        update_file_state(conn, "p", str(gone), "/bk/gone.txt", "h", 3)
+        update_file_state(conn, "p", str(live), "/bk/live.txt", "h", 1)
+        removed = prune_orphans(conn, None, apply=True)
+        assert len(removed) == 1
+        remaining = get_all_backups(conn, None)
+        assert len(remaining) == 1
+        assert remaining[0]["original_path"] == str(live)
+
+    def test_delete_backups_removes_file(self, tmp_path):
+        conn = _memory_connection()
+        gone = tmp_path / "gone.txt"
+        backup = tmp_path / "bk_gone.txt"
+        backup.write_text("data")
+        update_file_state(conn, "p", str(gone), str(backup), "h", 4)
+        prune_orphans(conn, None, delete_backups=True, apply=True)
+        assert not backup.exists()
+
+    def test_delete_backups_keeps_file_by_default(self, tmp_path):
+        conn = _memory_connection()
+        gone = tmp_path / "gone.txt"
+        backup = tmp_path / "bk_gone.txt"
+        backup.write_text("data")
+        update_file_state(conn, "p", str(gone), str(backup), "h", 4)
+        prune_orphans(conn, None, apply=True)
+        assert backup.exists()
+
+    def test_filters_by_profile(self, tmp_path):
+        conn = _memory_connection()
+        gone_a = tmp_path / "a.txt"
+        gone_b = tmp_path / "b.txt"
+        update_file_state(conn, "pa", str(gone_a), "/bk/a.txt", "h", 1)
+        update_file_state(conn, "pb", str(gone_b), "/bk/b.txt", "h", 1)
+        removed = prune_orphans(conn, "pa", apply=True)
+        assert len(removed) == 1
+        assert removed[0]["profile"] == "pa"

@@ -20,7 +20,7 @@ uv sync
 
 # Scaffold a config, then edit it
 uv run barkup init
-# writes ~/.config/barkup/config.toml (see config.example.toml for all options)
+# writes ~/.config/barkup/config.toml — set [general].sources and [local].destination, then run
 
 # Run your first backup
 uv run barkup run
@@ -75,11 +75,13 @@ Global option: `--config <PATH>` (use a custom config file for any command).
 | Command | Options | Description |
 | --- | --- | --- |
 | `barkup init` | `--force` | Create the default config at the user config path (overwrite with `--force`). |
-| `barkup run` | `--name <PROFILE>`, `--yes` | Run a backup. `--name` selects the profile; `--yes` skips the confirmation prompt (for automation/cron). |
+| `barkup run` | `--name <PROFILE>`, `--yes` | Run a backup. `--name` selects the profile; `--yes` is accepted for automation compatibility (no-op; dry-run is preview-only and never copies). |
 | `barkup list` | `--name <PROFILE>` | List backed-up files (original path, backup path, size, last backup). Filter by profile. |
 | `barkup status` | `--name <PROFILE>` | Show backup statistics for a profile (or all profiles). |
-| `barkup verify` | `--name <PROFILE>` | Recalculate hashes and compare with stored state; reports OK / missing / mismatched. Exits non-zero if any problem is found. |
-| `barkup restore <path>` | `--to <DEST>`, `--all`, `--name <PROFILE>` | Restore a single file (or `--all` for the whole set). `--to` restores to a custom location (preserves directory structure); `--name` selects the profile. `--all` requires `--name`. |
+| `barkup verify` | `--name <PROFILE>` | Recalculate hashes of the backup copies and compare with stored state; reports OK / missing / mismatched. Exits non-zero if any problem is found. |
+| `barkup restore <path>` | `--to <DEST>`, `--all`, `--name <PROFILE>`, `--yes` | Restore a single file (or `--all` for the whole set). `--to` restores to a custom location (preserves directory structure); `--name` selects the profile. Restoring onto an existing original requires `--yes`. `--all` requires `--name`. |
+| `barkup profiles` | — | List all backup profiles with file counts, total size, and last-backup time. |
+| `barkup prune` | `--name <PROFILE>`, `--delete-backups`, `--yes` | Dry run lists orphan records; with `--yes`, remove DB records whose source files no longer exist. `--delete-backups` also deletes the backup files. |
 
 Examples:
 
@@ -96,7 +98,7 @@ I run Barkup unattended as a scheduled job (cron) rather than by hand. My setup:
 
 1. `barkup init` to scaffold `~/.config/barkup/config.toml`.
 2. Point `[general].sources` at `~/Pictures` and `~/Documents`; set `[local].destination` to an external drive; enable the `google_drive` provider with a credentials file and a `remote_folder`.
-3. Run it daily via cron with `barkup run --yes` — the `--yes` flag skips the confirmation prompt so it runs non-interactively.
+3. Run it daily via cron with `barkup run` (the `--yes` flag is accepted for automation compatibility).
 
 The config is the single source of truth, so adjust sources, destinations, and schedule to taste.
 

@@ -110,23 +110,26 @@ def init_config(force: bool = False) -> Path:
     config_path.parent.mkdir(parents=True, exist_ok=True)
 
     # default config
-    default_config = f"""# Barkup Configuration File
+    default_config = """# Barkup Configuration File
+# Edit the values below, then run: barkup run
 
 [general]
 # fields specific to this section
 profile_name = "default"
 dry_run = false
 
-# 'sources', 'compression', and 'exclude' defined here
-# serve as fallbacks for [local] and [[cloud_providers]]
-# if they don't define their own.
-sources = ["{Path.home()}"]
+# Set the paths you want to back up here (files or directories).
+# Leave as an empty list until configured -- `barkup run` will remind you.
+sources = []
+
+# 'compression' and 'exclude' defined here serve as fallbacks for
+# [local] and [[cloud_providers]] if they don't define their own.
 compression = false
 exclude = ["*.tmp", ".git", "node_modules"]
 
 [local]
-# field specific to this section
-destination = "{Path.home() / "Backups"}"
+# Where backups are written. Must be set and must NOT be inside a source.
+destination = ""
 
 [[cloud_providers]]
 # check the docs for more about this section

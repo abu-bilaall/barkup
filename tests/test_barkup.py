@@ -198,3 +198,79 @@ class TestRunLocalBarkupCompression:
 
         assert not state["backup_path"].endswith(".zip")
         assert state["compressed"] == 0
+
+
+import pytest
+from pathlib import Path
+
+from barkup import database
+from barkup.barkup import run_barkup
+
+
+class TestRunBarkupBehavior:
+    @staticmethod
+    def _write_config(tmp_path, sources, destination, dry_run=False):
+        cfg = tmp_path / "barkup.config.toml"
+        src = ", ".join(f'"{s}"' for s in sources)
+        cfg.write_text(
+            "[general]\n"
+            'profile_name = "default"\n'
+            "dry_run = " + ("true" if dry_run else "false") + "\n"
+            f"sources = [{src}]\n"
+            "compression = false\n"
+            "exclude = []\n"
+            "[local]\n"
+            f'destination = "{destination}"\n'
+        )
+        return cfg
+
+    def test_dry_run_does_not_copy(self, tmp_path, monkeypatch):
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "a.txt").write_text("hello")
+        dest = tmp_path / "dest"
+        cfg = self._write_config(tmp_path, [str(src)], str(dest), dry_run=True)
+        monkeypatch.setattr(
+            database,
+            "open_connection",
+            lambda *a, **k: open_connection(db_path=Path(":memory:")),
+        )
+        stats = run_barkup(cli_path=cfg, profile_name="default", skip_confirm=True)
+        assert stats["dry_run"] is True
+        assert stats["files_backed_up"] == 0
+        assert not dest.exists()
+
+    def test_raises_when_sources_empty(self, tmp_path, monkeypatch):
+        dest = tmp_path / "dest"
+        cfg = self._write_config(tmp_path, [], str(dest))
+        monkeypatch.setattr(
+            database,
+            "open_connection",
+            lambda *a, **k: open_connection(db_path=Path(":memory:")),
+        )
+        with pytest.raises(ValueError):
+            run_barkup(cli_path=cfg, profile_name="default", skip_confirm=True)
+
+    def test_raises_when_destination_empty(self, tmp_path, monkeypatch):
+        src = tmp_path / "src"
+        src.mkdir()
+        cfg = self._write_config(tmp_path, [str(src)], "")
+        monkeypatch.setattr(
+            database,
+            "open_connection",
+            lambda *a, **k: open_connection(db_path=Path(":memory:")),
+        )
+        with pytest.raises(ValueError):
+            run_barkup(cli_path=cfg, profile_name="default", skip_confirm=True)
+
+    def test_raises_when_destination_inside_source(self, tmp_path, monkeypatch):
+        src = tmp_path / "src"
+        src.mkdir()
+        cfg = self._write_config(tmp_path, [str(src)], str(src))
+        monkeypatch.setattr(
+            database,
+            "open_connection",
+            lambda *a, **k: open_connection(db_path=Path(":memory:")),
+        )
+        with pytest.raises(ValueError):
+            run_barkup(cli_path=cfg, profile_name="default", skip_confirm=True)

@@ -176,3 +176,48 @@ class TestResolveExcluded:
         result = resolve_excluded(config)
 
         assert [f.path.name for f in result] == ["mod.py"]
+
+
+class TestDotfileExclusion:
+    def test_dotfiles_excluded_by_default(self, tmp_path):
+        (tmp_path / "a.txt").write_text("a")
+        (tmp_path / ".hidden.txt").write_text("secret")
+        (tmp_path / ".env").write_text("TOKEN=1")
+        dotdir = tmp_path / ".git"
+        dotdir.mkdir()
+        (dotdir / "config").write_text("x")
+        result = scan_sources([str(tmp_path)])
+        names = {f.path.name for f in result}
+        assert names == {"a.txt"}
+
+    def test_explicit_dotfile_included(self, tmp_path):
+        dotfile = tmp_path / ".bashrc"
+        dotfile.write_text("export PATH=.")
+        result = scan_sources([str(dotfile)])
+        assert len(result) == 1
+        assert result[0].path == dotfile
+
+    def test_explicit_dotfile_dir_included_whole(self, tmp_path):
+        dotdir = tmp_path / ".config"
+        dotdir.mkdir()
+        (dotdir / "settings.json").write_text("{}")
+        nested = dotdir / ".secret"
+        nested.mkdir()
+        (nested / "token").write_text("x")
+        result = scan_sources([str(dotdir)])
+        names = {f.path.name for f in result}
+        assert names == {"settings.json", "token"}
+
+    def test_resolve_excluded_also_skips_dotfiles(self, tmp_path):
+        (tmp_path / "a.txt").write_text("a")
+        (tmp_path / ".hidden").write_text("h")
+        cfg = ResolvedLocalConfig(
+            profile_name="p",
+            dry_run=False,
+            destination="/tmp/bk",
+            sources=[str(tmp_path)],
+            compression=False,
+            exclude=[],
+        )
+        result = resolve_excluded(cfg)
+        assert [f.path.name for f in result] == ["a.txt"]
